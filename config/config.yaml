@@ -1,0 +1,42 @@
+serial:
+  port: /dev/ttyUSB0
+  baudrate: 9600
+  timeout_s: 1.0
+
+sensors:
+  vibration:
+    slave_id: 1
+    poll_interval_s: 5
+    model: ES-VS-01
+  temp_humid:
+    slave_id: 2
+    poll_interval_s: 30
+    model: ES35-SW
+  load:
+    slave_id: 3
+    poll_interval_s: 1
+    model: RW-ST01D
+
+elevator:
+  id: elev-001
+  max_capacity_kg: 1000
+
+thresholds:
+  accel_rms_warning_mg: 80
+  accel_rms_critical_mg: 150
+  load_overload_pct: 0.95
+  motor_temp_warning_c: 65
+  motor_temp_critical_c: 80
+
+models:
+  vibration_anomaly: models/vibration_anomaly_v1.onnx
+  health_score: models/health_score_v1.onnx
+
+alerts:
+  rate_limit_minutes: 15
+  slack_webhook: ${SLACK_WEBHOOK}
+  smtp_host: ${SMTP_HOST}
+  smtp_port: 587
+  smtp_from: alerts@your-company.com
+  smtp_to:
+    - tech@your-company.com
