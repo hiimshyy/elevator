@@ -1,0 +1,44 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+ven/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+
+# Data (runtime)
+data/elevator.db
+data/logs/
+
+# Models (large binaries)
+models/*.onnx
+!models/README.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
