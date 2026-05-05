@@ -1,6 +1,6 @@
 """Elevator domain entity."""
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -15,4 +15,4 @@ class Elevator:
     install_date: str  # ISO date
     status: str = "active"  # active | decommissioned | maintenance
     last_maintenance: Optional[str] = None
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
