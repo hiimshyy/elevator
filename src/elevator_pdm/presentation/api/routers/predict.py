@@ -16,8 +16,8 @@ from elevator_pdm.presentation.api.dependencies import (
 from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
-from elevator_pdm.infrastructure.sensors.mock_gateway import MockSensorGateway
-from elevator_pdm.application.use_cases.run_inference import RunInference
+from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
+from elevator_pdm.application.use_cases.run_inference import RunInferenceUseCase as RunInference
 from elevator_pdm.application.services.feature_engineer import FeatureEngineer
 from elevator_pdm.presentation.api.schemas.requests import PredictRequest
 from elevator_pdm.presentation.api.schemas.responses import PredictResponse
