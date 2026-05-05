@@ -1,6 +1,6 @@
 """Maintenance schedule domain entity."""
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -16,4 +16,4 @@ class MaintenanceSchedule:
     status: str = "pending"  # pending | scheduled | completed | cancelled
     completed_at: Optional[str] = None
     technician: Optional[str] = None
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
