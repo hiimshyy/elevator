@@ -9,7 +9,7 @@ from elevator_pdm.presentation.api.dependencies import (
     get_vibration_runtime,
     get_health_runtime,
 )
-from elevator_pdm.infrastructure.sensors.mock_gateway import MockSensorGateway
+from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
 from elevator_pdm.presentation.api.schemas.responses import HealthCheckResponse
 
@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/", response_model=HealthCheckResponse)
 async def health_check(
     session: Session = Depends(get_db_session),
-    sensor_gw: MockSensorGateway = Depends(get_sensor_gateway),
+    sensor_gw: MockGateway = Depends(get_sensor_gateway),
     vibration_rt: OnnxRuntime = Depends(get_vibration_runtime),
     health_rt: OnnxRuntime = Depends(get_health_runtime),
 ):
