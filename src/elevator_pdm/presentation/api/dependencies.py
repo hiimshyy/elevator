@@ -9,23 +9,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from elevator_pdm.infrastructure.config.settings import Settings
-from elevator_pdm.infrastructure.persistence.database import get_engine, get_session_factory
-from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SqliteElevatorRepository
-from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SqliteReadingRepository
-from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SqliteInferenceRepository
-from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SqliteAlertRepository
-from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SqliteMaintenanceRepository
+from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
+from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
+from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
+from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SQLiteInferenceRepo
+from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
+from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SQLiteMaintenanceRepo
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
-from elevator_pdm.infrastructure.sensors.mock_gateway import MockSensorGateway
+from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
 
 
 # Module-level singletons (lazy-initialized)
-_settings: Optional[Settings] = None
-_engine: Optional[object] = None
-_session_factory: Optional[sessionmaker] = None
-_sensor_gateway: Optional[MockSensorGateway] = None
-_vibration_runtime: Optional[OnnxRuntime] = None
-_health_runtime: Optional[OnnxRuntime] = None
+_settings: Settings = None
+_engine = None
+_session_factory: sessionmaker = None
+_sensor_gateway: MockGateway = None
+_vibration_runtime: OnnxRuntime = None
+_health_runtime: OnnxRuntime = None
 
 
 def get_settings() -> Settings:
@@ -41,8 +41,8 @@ def get_db_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
-        db_path = "sqlite:///elevator.db"  # TODO: make configurable
-        _engine = get_engine(db_path)
+        db_path = "sqlite:///data/elevator.db"  # TODO: make configurable
+        _engine, _ = create_engine_and_session(db_path)
     return _engine
 
 
@@ -51,7 +51,7 @@ def get_db_session_factory():
     global _session_factory
     if _session_factory is None:
         engine = get_db_engine()
-        _session_factory = get_session_factory(engine)
+        _session_factory = sessionmaker(bind=engine)
     return _session_factory
 
 
@@ -67,45 +67,44 @@ def get_db_session() -> Generator[Session, None, None]:
 
 def get_elevator_repository(
     session: Session = Depends(get_db_session),
-) -> SqliteElevatorRepository:
+) -> SQLiteElevatorRepo:
     """Wire ElevatorRepository implementation."""
-    return SqliteElevatorRepository(session)
+    return SQLiteElevatorRepo(session)
 
 
 def get_reading_repository(
     session: Session = Depends(get_db_session),
-) -> SqliteReadingRepository:
+) -> SQLiteReadingRepo:
     """Wire ReadingRepository implementation."""
-    return SqliteReadingRepository(session)
+    return SQLiteReadingRepo(session)
 
 
 def get_inference_repository(
     session: Session = Depends(get_db_session),
-) -> SqliteInferenceRepository:
+) -> SQLiteInferenceRepo:
     """Wire InferenceRepository implementation."""
-    return SqliteInferenceRepository(session)
+    return SQLiteInferenceRepo(session)
 
 
 def get_alert_repository(
     session: Session = Depends(get_db_session),
-) -> SqliteAlertRepository:
+) -> SQLiteAlertRepo:
     """Wire AlertRepository implementation."""
-    return SqliteAlertRepository(session)
+    return SQLiteAlertRepo(session)
 
 
 def get_maintenance_repository(
     session: Session = Depends(get_db_session),
-) -> SqliteMaintenanceRepository:
+) -> SQLiteMaintenanceRepo:
     """Wire MaintenanceRepository implementation."""
-    return SqliteMaintenanceRepository(session)
+    return SQLiteMaintenanceRepo(session)
 
 
-def get_sensor_gateway() -> MockSensorGateway:
+def get_sensor_gateway() -> MockGateway:
     """Get or create SensorGateway singleton."""
     global _sensor_gateway
     if _sensor_gateway is None:
-        settings = get_settings()
-        _sensor_gateway = MockSensorGateway(settings)
+        _sensor_gateway = MockGateway()
     return _sensor_gateway
 
 
