@@ -13,6 +13,7 @@ from elevator_pdm.presentation.api.dependencies import (
 from elevator_pdm.domain.interfaces.elevator_repository import ElevatorRepository
 from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
+from elevator_pdm.presentation.api.schemas.requests import CreateElevatorRequest
 from elevator_pdm.presentation.api.schemas.responses import (
     ElevatorResponse,
     SensorReadingResponse,
@@ -20,6 +21,40 @@ from elevator_pdm.presentation.api.schemas.responses import (
 )
 
 router = APIRouter()
+
+
+@router.post("/", response_model=ElevatorResponse, status_code=201)
+def create_elevator(
+    request: CreateElevatorRequest,
+    repo: ElevatorRepository = Depends(get_elevator_repository),
+):
+    """Create a new elevator."""
+    from elevator_pdm.domain.entities.elevator import Elevator
+
+    elevator = Elevator(
+        id=request.id,
+        name=request.name,
+        location=request.location,
+        max_capacity_kg=request.max_capacity_kg,
+        install_date=request.install_date,
+    )
+
+    created = repo.create(elevator)
+    if not created:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Elevator {request.id} already exists",
+        )
+
+    return ElevatorResponse(
+        id=created.id,
+        name=created.name,
+        location=created.location,
+        max_capacity_kg=created.max_capacity_kg,
+        created_at=created.created_at,
+        latest_health_score=None,
+        status=None,
+    )
 
 
 @router.get("/", response_model=List[ElevatorResponse])

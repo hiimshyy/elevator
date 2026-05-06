@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/activate)",
+      "Bash(python -m pytest tests/unit/infrastructure/test_modbus_gateway.py -v)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(pytest tests/unit/application/test_health_calculator.py -v)",
+      "Bash(pytest -v)",
+      "Bash(pytest tests/unit/application/test_estimate_rul.py -v)",
+      "Bash(pytest tests/unit/application/test_estimate_rul.py::TestEstimateRul::test_rul_calculation_accuracy -v)",
+      "Bash(pytest tests/unit/infrastructure/test_notifications.py -v)",
+      "Bash(pytest tests/unit/presentation/test_dashboard.py -v)",
+      "Bash(uvicorn elevator_pdm.presentation.api.main:app --reload --port 8000)",
+      "Bash(.venv\\\\Scripts\\\\activate)",
+      "Bash(python -c \"from elevator_pdm.presentation.api.main import app; print\\('Import OK'\\)\")",
+      "PowerShell(pytest *)"
+    ]
+  }
+}

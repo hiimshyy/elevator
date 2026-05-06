@@ -3,6 +3,16 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional
 
 
+class CreateElevatorRequest(BaseModel):
+    """Request schema for creating an elevator."""
+
+    id: str = Field(..., description="Elevator identifier (e.g., elev-001)")
+    name: str = Field(..., description="Elevator name")
+    location: str = Field(..., description="Elevator location")
+    max_capacity_kg: float = Field(..., description="Maximum load capacity in kg")
+    install_date: str = Field(..., description="Installation date (ISO format)")
+
+
 class SensorReadingRequest(BaseModel):
     """Request schema for sensor readings."""
 

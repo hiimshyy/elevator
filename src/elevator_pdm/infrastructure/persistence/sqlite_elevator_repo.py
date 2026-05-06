@@ -39,11 +39,16 @@ class SQLiteElevatorRepo(ElevatorRepository):
             created_at=orm_elevator.created_at,
         )
 
-    def create(self, elevator: Elevator) -> None:
-        """Create a new elevator record."""
+    def create(self, elevator: Elevator) -> Optional[Elevator]:
+        """Create a new elevator record. Returns created elevator or None if already exists."""
+        # Check if already exists
+        existing = self._session.query(ORMElevator).filter_by(id=elevator.id).first()
+        if existing:
+            return None
         orm_elevator = self._to_orm(elevator)
         self._session.add(orm_elevator)
         self._session.commit()
+        return self._to_domain(orm_elevator)
 
     def get_by_id(self, elevator_id: str) -> Optional[Elevator]:
         """Get an elevator by ID."""
