@@ -656,23 +656,23 @@ alerts:
 
 ### Phase 1A — Hardware & Connectivity (Week 1–2)
 
-- [ ] Obtain RS-485 to USB adapter (isolated, e.g. EPCB USB-TO-RS485-ISOLATED)
-- [ ] Assign unique Modbus Slave IDs: VS-01=1, ES35-SW=2, RW-ST01D=3
-- [ ] Wire sensors on shared RS-485 bus: A/B differential pair + GND
-- [ ] Enable 120Ω termination resistor on ES35-SW (built-in switch)
-- [ ] Test each sensor with Insight Sensor software (Windows) to verify register map
-- [ ] Document actual register addresses from ES-VS-01 and RW-ST01D datasheets
-- [ ] Verify HD-MV01A loadcell is calibrated and connected to RW-ST01D
-- [ ] Confirm Orange Pi 4 Pro can read all 3 sensors via minimalmodbus
+- [x] Obtain RS-485 to USB adapter (isolated, e.g. EPCB USB-TO-RS485-ISOLATED)
+- [x] Assign unique Modbus Slave IDs: VS-01=1, ES35-SW=2, RW-ST01D=3
+- [x] Wire sensors on shared RS-485 bus: A/B differential pair + GND
+- [x] Enable 120Ω termination resistor on ES35-SW (built-in switch)
+- [x] Test each sensor with Insight Sensor software (Windows) to verify register map
+- [x] Document actual register addresses from ES-VS-01 and RW-ST01D datasheets
+- [x] Verify HD-MV01A loadcell is calibrated and connected to RW-ST01D
+- [x] Confirm Orange Pi 4 Pro can read all 3 sensors via minimalmodbus
 
 ### Phase 1B — Data Pipeline (Week 2–4)
 
-- [ ] Implement `sensor_poller.py` with per-sensor threading and exponential backoff
-- [ ] Create SQLite schema (Section 4) with indexes on `(elevator_id, timestamp)`
-- [ ] Collect 48h of baseline data — elevator running normally
-- [ ] Implement `preprocessor.py` with rolling window features (Section 3.3)
-- [ ] Validate feature distributions (no NaN, no extreme outliers)
-- [ ] Set up Redis as inter-process queue between poller and inference engine
+- [x] Implement `sensor_poller.py` with per-sensor threading and exponential backoff
+- [x] Create SQLite schema (Section 4) with indexes on `(elevator_id, timestamp)`
+- [x] Collect 48h of baseline data — elevator running normally
+- [x] Implement `preprocessor.py` with rolling window features (Section 3.3)
+- [x] Validate feature distributions (no NaN, no extreme outliers)
+- [x] Set up Redis as inter-process queue between poller and inference engine
 
 ### Phase 1C — ML Models (Week 4–8)
 
