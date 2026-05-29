@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 from elevator_pdm.presentation.api.dependencies import (
     get_elevator_repository,
@@ -17,7 +16,6 @@ from elevator_pdm.presentation.api.schemas.requests import CreateElevatorRequest
 from elevator_pdm.presentation.api.schemas.responses import (
     ElevatorResponse,
     SensorReadingResponse,
-    InferenceResponse,
 )
 
 router = APIRouter()
@@ -101,14 +99,14 @@ def get_elevator(
 
     latest = inference_repo.find_latest(elevator_id)
     health_score = latest.health_score if latest else None
-    status = latest.status if latest else None
+    elevator_status = latest.status if latest else None
 
     return ElevatorResponse(
         id=elev.id,
         max_capacity_kg=elev.max_capacity_kg,
         created_at=elev.created_at,
         latest_health_score=health_score,
-        status=status,
+        status=elevator_status,
     )
 
 
@@ -133,10 +131,13 @@ def get_readings(
     # Cap limit
     limit = min(limit, 5000)
 
+    from_ts = from_time.isoformat() if from_time else None
+    to_ts = to_time.isoformat() if to_time else None
+
     readings = repo.find_by_elevator(
         elevator_id=elevator_id,
-        from_time=from_time,
-        to_time=to_time,
+        from_ts=from_ts,
+        to_ts=to_ts,
         sensor_id=sensor_id,
         limit=limit,
     )

@@ -6,7 +6,7 @@ CORS middleware, and API key auth.
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from elevator_pdm.presentation.api.dependencies import (
@@ -110,6 +110,11 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root():
         return {"message": "Elevator PDM API", "docs": "/docs"}
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> Response:
+        """Return an empty favicon to avoid 404 noise in browser logs."""
+        return Response(content=b"", media_type="image/x-icon")
 
     return app
 
