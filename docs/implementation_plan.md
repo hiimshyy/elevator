@@ -1,8 +1,10 @@
 # Elevator Predictive Maintenance — Phase 1 Implementation Plan
 
 > **Project:** AI Health Prediction & Camera Monitoring — Phase 1
-> **Target:** Production-ready by end of August 2025
+> **Target:** Production-ready by end of August 2026
 > **Classification:** Internal — Confidential
+> **Last Reviewed:** 2026-05-29
+> **Status:** In progress (implementation partially complete)
 
 ---
 
@@ -19,6 +21,9 @@
 9. [Implementation Checklist](#8-implementation-checklist)
 
 ---
+
+> [!IMPORTANT]
+> This plan contains both current implementation details and target-state architecture. Items marked as complete in Section 8 were reviewed against repository state on 2026-05-29; remaining items are still planned.
 
 ## 0. Sensor Stack Summary
 
@@ -60,6 +65,7 @@ All inference runs on an edge device co-located with the elevator controller pan
 | API framework | **FastAPI + uvicorn** | Flask, Django | Async-native, auto Swagger docs, Pydantic validation |
 | ML runtime | **ONNX Runtime (CPU)** | TFLite, PyTorch | Framework-agnostic, fast CPU inference |
 | DB (edge) | **SQLite via SQLAlchemy** | PostgreSQL, InfluxDB | Zero-config, embedded, sufficient for PoC |
+| Cloud Comms| **MQTT (paho-mqtt)** | HTTP REST, Direct DB | Lightweight, QOS support, handles poor elevator shaft connectivity |
 | DB (cloud) | **PostgreSQL (RDS/Supabase)** | MongoDB, TimescaleDB | Relational, good for structured sensor + event data |
 | Dashboard | **Streamlit (PoC) → React (prod)** | Grafana, Tableau | Fast to build; React for production UX |
 | Alerting | **Slack webhook + Email (SMTP)** | PagerDuty | Zero cost, sufficient for PoC |
@@ -85,9 +91,12 @@ flowchart TD
         DB["SQLite"]
         API["FastAPI Server"]
         AD["alert_dispatcher.py<br/>Slack / SMTP"]
+        MQTT_PUB["mqtt_sync_job.py<br/>MQTT Client"]
     end
 
     subgraph CLOUD["Cloud"]
+        BROKER["MQTT Broker<br/>(e.g., Mosquitto)"]
+        SUB["Cloud Subscriber<br/>Worker"]
         PG["PostgreSQL"]
         DASH["React Dashboard"]
     end
@@ -97,7 +106,11 @@ flowchart TD
     RD --> PP --> IE --> RE
     RE --> AD & DB
     API --> DASH
-    DB -->|cloud_sync.py| PG
+    DB --> MQTT_PUB
+    MQTT_PUB -->|Publish (QoS 1)| BROKER
+    BROKER -->|Subscribe| SUB
+    BROKER -->|Subscribe (Live)| DASH
+    SUB -->|Insert| PG
 ```
 
 ### 1.3 ML Model Architecture
@@ -214,7 +227,7 @@ elevator-pdm/
 │       │   │   ├── run_inference.py    # Run ONNX model on feature vector
 │       │   │   ├── evaluate_rules.py   # Apply threshold rules on inference output
 │       │   │   ├── dispatch_alert.py   # Send alert with rate-limiting logic
-│       │   │   ├── sync_to_cloud.py    # Batch upload unsynced rows
+│       │   │   ├── publish_to_mqtt.py  # Publish unsynced data via MQTT
 │       │   │   ├── estimate_rul.py     # Daily RUL estimation batch job
 │       │   │   ├── get_elevator_status.py  # Query current status for dashboard
 │       │   │   ├── get_readings.py     # Paginated readings query
@@ -262,7 +275,8 @@ elevator-pdm/
 │       │   ├── messaging/
 │       │   │   ├── __init__.py
 │       │   │   ├── redis_event_bus.py  # Implements EventBus via Redis pub/sub
-│       │   │   └── redis_queue.py      # Redis list-based work queue
+│       │   │   ├── redis_queue.py      # Redis list-based work queue
+│       │   │   └── mqtt_publisher.py   # MQTT client implementation
 │       │   ├── notifications/
 │       │   │   ├── __init__.py
 │       │   │   ├── slack_notifier.py   # Implements NotificationService (webhook)
@@ -270,7 +284,7 @@ elevator-pdm/
 │       │   │   └── composite_notifier.py # Fan-out to multiple channels
 │       │   ├── cloud/
 │       │   │   ├── __init__.py
-│       │   │   └── cloud_sync_job.py   # Background sync to PostgreSQL
+│       │   │   └── mqtt_sync_job.py    # Background job polling DB and publishing via MQTT
 │       │   └── config/
 │       │       ├── __init__.py
 │       │       └── settings.py         # Pydantic BaseSettings — load from env/yaml
@@ -393,15 +407,15 @@ elevator-pdm/
 
 | Service | File | Runs On | Responsibility |
 |---|---|---|---|
-| sensor_poller | `sensor_poller.py` | Edge (always on) | Poll all 3 Modbus sensors, write raw readings to SQLite + Redis |
-| preprocessor | `preprocessor.py` | Edge (always on) | Consume Redis queue, compute rolling features |
-| inference_engine | `inference_engine.py` | Edge (always on) | Load ONNX models, run anomaly + health score inference |
-| rule_engine | `rule_engine.py` | Edge (always on) | Apply threshold rules, trigger alerts, log events |
-| alert_dispatcher | `alert_dispatcher.py` | Edge (always on) | Send Slack/SMTP alerts, rate-limit duplicates (1 per 15 min) |
-| api_server | `main.py` (FastAPI) | Edge + Cloud | REST + WebSocket endpoints |
-| cloud_sync | `cloud_sync.py` | Edge (background) | Batch upload to cloud PostgreSQL |
-| rul_scheduler | `rul_job.py` | Edge (cron daily) | RUL estimation on 7-day health score trends |
-| model_trainer | `train.py` | Offline / Cloud VM | Retrain models, export ONNX |
+| sensor polling orchestration | `src/elevator_pdm/application/use_cases/poll_sensors.py` | Edge (always on) | Poll all 3 Modbus sensors, write raw readings to SQLite + Redis queue |
+| reading processor | `src/elevator_pdm/application/use_cases/process_reading.py` | Edge (always on) | Consume queue items and compute rolling features |
+| inference engine | `src/elevator_pdm/application/use_cases/run_inference.py` | Edge (always on) | Run ONNX models and persist inference results |
+| rule engine | `src/elevator_pdm/application/use_cases/evaluate_rules.py` | Edge (always on) | Apply threshold rules, classify severity |
+| alert dispatcher | `src/elevator_pdm/application/use_cases/dispatch_alert.py` | Edge (always on) | Send Slack/SMTP alerts with rate limiting |
+| api server | `src/elevator_pdm/presentation/api/main.py` | Edge + Cloud | REST + WebSocket endpoints |
+| mqtt publisher | `src/elevator_pdm/infrastructure/messaging/mqtt_publisher.py` | Edge (background) | Publish data/events to MQTT broker |
+| rul scheduler | `src/elevator_pdm/application/use_cases/estimate_rul.py` | Edge (scheduled) | Estimate RUL from health score trends |
+| model training/export | `notebooks/*`, `scripts/export_onnx.py` | Offline / Cloud VM | Train models and export ONNX artifacts |
 
 ### 3.2 sensor_poller.py — Design Principles
 
@@ -564,54 +578,27 @@ Pushes JSON every 5s with latest readings + inference result.
 
 | Page | File | Content |
 |---|---|---|
-| Fleet Overview | `pages/1_fleet.py` | Elevator map, status badges, health gauges |
-| Live Monitor | `pages/2_live.py` | Real-time line charts (accel, load, temp) — 5s refresh |
-| Alert Inbox | `pages/3_alerts.py` | Filterable alert table with acknowledge button |
-| Maintenance | `pages/4_maintenance.py` | Calendar view + create/complete entries |
-| Model Performance | `pages/5_models.py` | Confusion matrix, AUC, SHAP, version info |
-| Admin / Config | `pages/6_admin.py` | Sensor config, model reload, sync status |
+| Fleet Overview | `src/elevator_pdm/presentation/dashboard/pages/fleet.py` | Elevator list, status badges, health indicators |
+| Live Monitor | `src/elevator_pdm/presentation/dashboard/pages/live.py` | Real-time charts (accel, load, temp), 5s refresh |
+| Alerts & Maintenance | `src/elevator_pdm/presentation/dashboard/pages/alerts.py` | Alert list and maintenance actions in one page |
+
+> [!NOTE]
+> Planned split pages (`maintenance.py`, `models.py`, `admin.py`) are not yet implemented in the current repository.
 
 ---
 
 ## 7. Deployment & Configuration
 
-### 7.1 Docker Compose (Edge)
+### 7.1 Deployment Status (Current vs Planned)
 
-```yaml
-version: '3.9'
-services:
-  sensor_poller:
-    build: ./services/sensor_poller
-    devices: ['/dev/ttyUSB0:/dev/ttyUSB0']
-    volumes: ['./data:/app/data']
-    environment: [ELEVATOR_ID=elev-001]
-    restart: always
+- **Current repo state (2026-05-29):** No committed `docker-compose.yml` yet; `deploy/systemd/` exists as the deployment placeholder.
+- **Planned:** Add edge `docker-compose.yml` after service entrypoints are finalized and MQTT cloud sync worker is implemented.
 
-  inference_engine:
-    build: ./services/inference
-    volumes: ['./models:/app/models', './data:/app/data']
-    depends_on: [sensor_poller, redis]
-    restart: always
-
-  api_server:
-    build: ./services/api
-    ports: ['8000:8000']
-    volumes: ['./data:/app/data']
-    environment:
-      - SECRET_KEY=${SECRET_KEY}
-      - SLACK_WEBHOOK=${SLACK_WEBHOOK}
-      - SMTP_HOST=${SMTP_HOST}
-    restart: always
-
-  redis:
-    image: redis:7-alpine
-    restart: always
-
-  streamlit:
-    build: ./dashboard
-    ports: ['8501:8501']
-    restart: always
-```
+| Deployment Artifact | Status | Notes |
+|---|---|---|
+| `docker-compose.yml` (edge) | Planned | Not committed in this repository yet |
+| Dockerfiles per service | Planned | Referenced in architecture, not yet committed |
+| `deploy/systemd/` unit(s) | Placeholder | Directory exists; unit files still to be added |
 
 ### 7.2 config.yaml
 
@@ -629,6 +616,16 @@ sensors:
 elevator:
   id: elev-001
   max_capacity_kg: 1000
+
+mqtt:
+  broker_url: ${MQTT_BROKER_URL}
+  port: ${MQTT_PORT}
+  username: ${MQTT_USERNAME}
+  password: ${MQTT_PASSWORD}
+  topic_r: ${MQTT_TOPIC_R}
+  topic_w: ${MQTT_TOPIC_W}
+  client_id: ${MQTT_CLIENT_ID}
+  qos: 1
 
 thresholds:
   accel_rms_warning_mg:  80
@@ -667,10 +664,10 @@ alerts:
 
 ### Phase 1B — Data Pipeline (Week 2–4)
 
-- [x] Implement `sensor_poller.py` with per-sensor threading and exponential backoff
+- [x] Implement polling orchestration (`poll_sensors`) with per-sensor threading and exponential backoff
 - [x] Create SQLite schema (Section 4) with indexes on `(elevator_id, timestamp)`
 - [x] Collect 48h of baseline data — elevator running normally
-- [x] Implement `preprocessor.py` with rolling window features (Section 3.3)
+- [x] Implement reading processing + rolling feature pipeline (`process_reading`, Section 3.3)
 - [x] Validate feature distributions (no NaN, no extreme outliers)
 - [x] Set up Redis as inter-process queue between poller and inference engine
 
@@ -680,22 +677,23 @@ alerts:
 - [ ] Label first anomaly events manually: inject load spike, simulate high vibration
 - [ ] Train XGBoost classifier on labeled data (NORMAL / WARNING / CRITICAL)
 - [ ] Train LSTM Autoencoder on multivariate sensor sequence (10-min windows)
-- [ ] Implement `health_score` = weighted combo of anomaly confidence + trend
-- [ ] Implement rule-based overload detection (load_kg > 95% capacity)
-- [ ] Implement RUL estimation via linear regression on 7-day health_score trend
+- [x] Implement `health_score` = weighted combo of anomaly confidence + trend
+- [x] Implement rule-based overload detection (load_kg > 95% capacity)
+- [x] Implement RUL estimation via linear regression on 7-day health_score trend
 - [ ] Export all models to ONNX, benchmark inference time on edge device
 
 ### Phase 1D — API & Dashboard (Week 8–12)
 
-- [ ] Implement FastAPI server with all endpoints (Section 5)
-- [ ] Implement WebSocket `/ws/sensors/{elevator_id}` with 5s push cadence
-- [ ] Implement `alert_dispatcher` with Slack + SMTP + rate limiting
-- [ ] Build Streamlit dashboard: Fleet Overview, Live Monitor, Alerts, Maintenance
+- [x] Implement FastAPI server with all endpoints (Section 5)
+- [x] Implement WebSocket `/ws/sensors/{elevator_id}` with 5s push cadence
+- [x] Implement `alert_dispatcher` with Slack + SMTP + rate limiting
+- [x] Build Streamlit dashboard: Fleet Overview, Live Monitor, Alerts & Maintenance
 - [ ] Deploy all services via docker-compose on edge device
-- [ ] Set up cloud sync job to PostgreSQL (Supabase or AWS RDS free tier)
+- [ ] Set up Cloud MQTT Broker (e.g. EMQX, Mosquitto) and configure edge credentials
+- [ ] Implement edge cloud-sync job and cloud subscriber worker to insert into PostgreSQL
 - [ ] End-to-end test: simulate anomaly → inference → alert → dashboard update
 - [ ] Load test API: 10 concurrent clients, verify < 300ms p95 latency
 
 ---
 
-> **Source:** [Elevator_PdM_Implementation_Plan.docx](file:///d:/OneDrive%20-%20DATGROUP/Documents/elevator/docs/Elevator_PdM_Implementation_Plan.docx)
+> **Source:** [Elevator_PdM_Implementation_Plan.docx](./Elevator_PdM_Implementation_Plan.docx)
