@@ -8,7 +8,7 @@ This project follows **Clean Architecture** with four layers:
 
 - **Domain** — Entities, value objects, interfaces (ports), domain events
 - **Application** — Use cases, DTOs, feature engineering
-- **Infrastructure** — Adapters: Modbus, SQLite/PostgreSQL, Redis, ONNX, Slack, SMTP
+- **Infrastructure** — Adapters: Modbus, SQLite/PostgreSQL, Redis, MQTT, ONNX, Slack, SMTP
 - **Presentation** — FastAPI REST/WebSocket API, Streamlit dashboard
 
 ## Quick Start

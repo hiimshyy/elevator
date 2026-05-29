@@ -52,6 +52,17 @@ class AlertsConfig(BaseModel):
     smtp_to: list[str] = []
 
 
+class MqttConfig(BaseModel):
+    broker_url: str = "61.28.230.132"
+    port: int = 1883
+    username: str = "embody"
+    password: str = "rnd@2025"
+    topic_r: str = "embody/r"
+    topic_w: str = "embody/w"
+    client_id: str = "embody002"
+    qos: int = 1
+
+
 class Settings(BaseSettings):
     serial: SerialConfig = SerialConfig()
     sensors: SensorsConfig = SensorsConfig()
@@ -59,6 +70,7 @@ class Settings(BaseSettings):
     thresholds: ThresholdsConfig = ThresholdsConfig()
     models: ModelsConfig = ModelsConfig()
     alerts: AlertsConfig = AlertsConfig()
+    mqtt: MqttConfig = MqttConfig()
 
     model_config = SettingsConfigDict(env_prefix="ELEVATOR_", env_nested_delimiter="__")
 

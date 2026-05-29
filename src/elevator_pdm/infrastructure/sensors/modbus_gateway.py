@@ -31,14 +31,17 @@ class ModbusGateway(SensorGateway):
         timeout = self._settings.serial.timeout_s
 
         self._vib = minimalmodbus.Instrument(port, self._settings.sensors.vibration.slave_id)
+        assert self._vib.serial is not None
         self._vib.serial.baudrate = baud
         self._vib.serial.timeout = timeout
 
         self._temp = minimalmodbus.Instrument(port, self._settings.sensors.temp_humid.slave_id)
+        assert self._temp.serial is not None
         self._temp.serial.baudrate = baud
         self._temp.serial.timeout = timeout
 
         self._load = minimalmodbus.Instrument(port, self._settings.sensors.load.slave_id)
+        assert self._load.serial is not None
         self._load.serial.baudrate = baud
         self._load.serial.timeout = timeout
 

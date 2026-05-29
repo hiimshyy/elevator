@@ -40,3 +40,13 @@ alerts:
   smtp_from: alerts@your-company.com
   smtp_to:
     - tech@your-company.com
+
+mqtt:
+  broker_url: "61.28.230.132"
+  port: 1883
+  username: "embody"
+  password: "rnd@2025"
+  topic_r: "embody/r"
+  topic_w: "embody/w"
+  client_id: "embody002"
+  qos: 1

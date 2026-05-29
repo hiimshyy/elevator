@@ -81,6 +81,6 @@ src/elevator_pdm/
 
 Three RS-485 Modbus RTU sensors on shared bus: ES-VS-01 (vibration, slave 1), ES35-SW (temp/humidity, slave 2), RW-ST01D + HD-MV01A (load cell, slave 3). Poll interval: 5s vibration, 30s temp/humidity, 1s load.
 
-### Database
+### Database & Cloud Sync
 
-SQLite on edge (5 tables: elevators, sensor_readings, inference_results, alerts, maintenance_schedule). PostgreSQL in cloud. ORM: SQLAlchemy 2.0 with `infrastructure/persistence/models.py`.
+SQLite on edge (5 tables: elevators, sensor_readings, inference_results, alerts, maintenance_schedule). Edge publishes unsynchronized data via **MQTT** to a Cloud Broker, and a Cloud Subscriber worker inserts it into PostgreSQL in the cloud. ORM: SQLAlchemy 2.0 with `infrastructure/persistence/models.py`.
