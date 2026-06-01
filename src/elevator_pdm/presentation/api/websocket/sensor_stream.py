@@ -1,14 +1,14 @@
 """WebSocket sensor stream (Task D8)."""
-import json
 import asyncio
-from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
-from elevator_pdm.presentation.api.dependencies import get_reading_repository
-from elevator_pdm.presentation.api.dependencies import get_inference_repository
-from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
+from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
+from elevator_pdm.presentation.api.dependencies import (
+    get_inference_repository,
+    get_reading_repository,
+)
 
 router = APIRouter()
 
@@ -42,13 +42,17 @@ async def sensor_stream(
             message = {
                 "event": "sensor_update",
                 "elevator_id": elevator_id,
-                "timestamp": latest_reading.timestamp.isoformat() if latest_reading else None,
+                "timestamp": latest_reading.timestamp if latest_reading else None,
                 "readings": {
                     "accel_rms_mg": latest_reading.accel_rms_mg if latest_reading else None,
                     "velocity_rms_mms": latest_reading.velocity_rms_mms if latest_reading else None,
                     "peak_accel_mg": latest_reading.peak_accel_mg if latest_reading else None,
-                    "vib_temperature_c": latest_reading.vib_temperature_c if latest_reading else None,
-                    "env_temperature_c": latest_reading.env_temperature_c if latest_reading else None,
+                    "vib_temperature_c": (
+                        latest_reading.vib_temperature_c if latest_reading else None
+                    ),
+                    "env_temperature_c": (
+                        latest_reading.env_temperature_c if latest_reading else None
+                    ),
                     "env_humidity_pct": latest_reading.env_humidity_pct if latest_reading else None,
                     "load_kg": latest_reading.load_kg if latest_reading else None,
                 } if latest_reading else None,
@@ -57,7 +61,10 @@ async def sensor_stream(
                     "confidence": latest_inference.confidence if latest_inference else None,
                     "health_score": latest_inference.health_score if latest_inference else None,
                 } if latest_inference else None,
-                "alert": latest_inference and latest_inference.status in ("WARNING", "CRITICAL", "OVERLOAD"),
+                "alert": (
+                    latest_inference
+                    and latest_inference.status in ("WARNING", "CRITICAL", "OVERLOAD")
+                ),
             }
 
             await websocket.send_json(message)

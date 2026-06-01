@@ -3,9 +3,10 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from elevator_pdm.infrastructure.persistence.models import Base, Elevator, Alert as ORMAlert
-from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
 from elevator_pdm.domain.entities.alert import Alert
+from elevator_pdm.infrastructure.persistence.models import Alert as ORMAlert
+from elevator_pdm.infrastructure.persistence.models import Base, Elevator
+from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
 
 
 @pytest.fixture
@@ -13,8 +14,8 @@ def repo():
     """Create an in-memory SQLite repo with schema initialized."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=engine)
+    session = session_local()
 
     # Create a test elevator first
     elevator = Elevator(
@@ -137,3 +138,46 @@ def test_find_by_elevator_returns_empty_for_unknown(repo):
     repo, session = repo
     results = repo.find_by_elevator("nonexistent")
     assert len(results) == 0
+
+
+def test_find_all_returns_all_alerts(repo):
+    repo, session = repo
+
+    for severity in ["WARNING", "CRITICAL"]:
+        repo.save(
+            Alert(
+                elevator_id="test-elev-001",
+                inference_id=1,
+                alert_type="VIBRATION_HIGH",
+                severity=severity,
+                message="Test alert",
+                sent_at="2025-01-01T00:00:00+00:00",
+                channel="slack",
+            )
+        )
+
+    results = repo.find_all()
+
+    assert len(results) == 2
+    assert results[0].id is not None
+
+
+def test_get_by_id_returns_alert(repo):
+    repo, session = repo
+    repo.save(
+        Alert(
+            elevator_id="test-elev-001",
+            inference_id=1,
+            alert_type="VIBRATION_HIGH",
+            severity="WARNING",
+            message="Test alert",
+            sent_at="2025-01-01T00:00:00+00:00",
+            channel="slack",
+        )
+    )
+
+    orm_alert = session.query(ORMAlert).first()
+    result = repo.get_by_id(orm_alert.id)
+
+    assert result is not None
+    assert result.id == orm_alert.id

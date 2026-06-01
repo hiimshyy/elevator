@@ -1,6 +1,5 @@
 """Alert domain entity."""
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -15,5 +14,6 @@ class Alert:
     sent_at: str  # UTC ISO datetime
     channel: str  # slack | email | sms
     acknowledged: bool = False
-    acknowledged_by: Optional[str] = None
-    acknowledged_at: Optional[str] = None
+    acknowledged_by: str | None = None
+    acknowledged_at: str | None = None
+    id: int | None = None

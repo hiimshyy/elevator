@@ -3,25 +3,23 @@
 Creates the FastAPI app with lifespan (init DB, load models),
 CORS middleware, and API key auth.
 """
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
-from fastapi import FastAPI, Depends, Response
+from fastapi import Depends, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from elevator_pdm.presentation.api.dependencies import (
-    get_settings,
-    get_db_engine,
-)
-from elevator_pdm.presentation.api.routers import (
-    elevators_router,
-    predict_router,
-    alerts_router,
-    maintenance_router,
-    health_router,
-    models_router,
-)
 from elevator_pdm.presentation.api.auth import verify_api_key
+from elevator_pdm.presentation.api.dependencies import get_db_engine
+from elevator_pdm.presentation.api.routers import (
+    alerts_router,
+    elevators_router,
+    health_router,
+    maintenance_router,
+    models_router,
+    predict_router,
+)
+from elevator_pdm.presentation.api.websocket.sensor_stream import router as sensor_stream_router
 
 
 @asynccontextmanager
@@ -32,7 +30,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     - Loads ML models.
     """
     # Startup
-    settings = get_settings()
     engine = get_db_engine()
     # Import models to register them with Base
     from elevator_pdm.infrastructure.persistence import models  # noqa: F401
@@ -47,8 +44,6 @@ def create_app() -> FastAPI:
     Returns:
         Configured FastAPI application.
     """
-    settings = get_settings()
-
     app = FastAPI(
         title="Elevator PDM API",
         description="Predictive Maintenance API for Elevator Monitoring",
@@ -106,6 +101,7 @@ def create_app() -> FastAPI:
         tags=["models"],
         dependencies=[api_key_dep],
     )
+    app.include_router(sensor_stream_router, tags=["websocket"])
 
     @app.get("/")
     async def root():

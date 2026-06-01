@@ -153,7 +153,7 @@
 
 ---
 
-## Phase 1D — API & Dashboard (Week 8–12)
+## Phase 1D — API & Frontend (Week 8–12)
 
 ### TASK-D1: FastAPI App Factory & Auth
 
@@ -235,37 +235,37 @@
 | **Description** | Background job: query `find_unsynced()` → batch INSERT into cloud PostgreSQL → `mark_synced()`. Runs every 5 minutes. |
 | **Acceptance Criteria** | ① Syncs unsynced sensor_readings and inference_results ② Marks rows as synced after successful upload ③ Partial failure doesn't lose data (transactional) ④ Handles cloud DB unreachable gracefully (retry next cycle) |
 
-### TASK-D11: Streamlit Dashboard — Fleet Overview
+### TASK-D11: React Dashboard — Fleet Overview
 
 | | |
 |---|---|
-| **Files** | `presentation/dashboard/app.py`, `presentation/dashboard/pages/1_fleet.py` |
-| **Description** | Streamlit entry point + Fleet Overview page: list all elevators with status badges (green/yellow/red), health score gauges, last reading timestamp. Calls REST API. |
-| **Acceptance Criteria** | ① Page loads and shows all elevators from API ② Color-coded badges match status ③ Health gauge reflects current score ④ Auto-refresh every 10s |
+| **Files** | `frontend/package.json`, `frontend/src/App.tsx`, `frontend/src/pages/FleetOverviewPage.tsx` |
+| **Description** | React entry point + Fleet Overview route: list all elevators with status badges, health indicators, and last reading timestamp. Calls REST API. |
+| **Acceptance Criteria** | ① Route loads and shows all elevators from API ② Color-coded badges match status ③ Health indicator reflects current score ④ Auto-refresh or revalidation every 10s |
 
-### TASK-D12: Streamlit Dashboard — Live Monitor
-
-| | |
-|---|---|
-| **Files** | `presentation/dashboard/pages/2_live.py` |
-| **Description** | Select elevator dropdown → live line charts for accel_rms, velocity_rms, load_kg, temperature. Polls API every 5s. |
-| **Acceptance Criteria** | ① Dropdown lists all elevators ② Charts update every 5s with new data ③ Rolling 60-point window ④ Y-axis labels show units (mg, mm/s, kg, °C) |
-
-### TASK-D13: Streamlit Dashboard — Alerts & Maintenance
+### TASK-D12: React Dashboard — Live Monitor
 
 | | |
 |---|---|
-| **Files** | `presentation/dashboard/pages/3_alerts.py`, `presentation/dashboard/pages/4_maintenance.py` |
-| **Description** | Alert Inbox: filterable table with acknowledge button. Maintenance: table with status filter + create/complete forms. |
-| **Acceptance Criteria** | ① Alerts table filters by severity and acknowledged status ② Acknowledge button calls PATCH API ③ Maintenance create form submits POST ④ Status transitions update via PATCH |
+| **Files** | `frontend/src/pages/LiveMonitorPage.tsx`, `frontend/src/components/charts/*`, `frontend/src/lib/ws.ts` |
+| **Description** | Select elevator dropdown → initial history via REST, then live line charts for accel_rms, velocity_rms, load_kg, temperature via WebSocket stream. |
+| **Acceptance Criteria** | ① Dropdown lists all elevators ② Charts update from `/ws/sensors/{elevator_id}` ③ Rolling 60-point window ④ Axes and legends show units (mg, mm/s, kg, °C) |
+
+### TASK-D13: React Dashboard — Alerts & Maintenance
+
+| | |
+|---|---|
+| **Files** | `frontend/src/pages/AlertsMaintenancePage.tsx`, `frontend/src/components/alerts/*`, `frontend/src/components/maintenance/*` |
+| **Description** | Alert inbox with filterable table and acknowledge action. Maintenance view with status filter plus create/complete forms. |
+| **Acceptance Criteria** | ① Alerts table filters by severity and acknowledged status ② Acknowledge action calls PATCH API ③ Maintenance create form submits POST ④ Status transitions update via PATCH |
 
 ### TASK-D14: Docker Compose & Dockerfiles
 
 | | |
 |---|---|
-| **Files** | `docker-compose.yml`, `deploy/Dockerfile.poller`, `deploy/Dockerfile.inference`, `deploy/Dockerfile.api`, `deploy/Dockerfile.dashboard` |
-| **Description** | Multi-service Docker Compose for edge deployment. Each Dockerfile uses Python 3.11-slim, installs only required deps. |
-| **Acceptance Criteria** | ① `docker-compose build` succeeds with no errors ② `docker-compose up` starts all 5 services ③ API reachable at `localhost:8000` ④ Dashboard at `localhost:8501` ⑤ Redis healthy ⑥ Sensor poller logs readings (mock mode) |
+| **Files** | `docker-compose.yml`, `deploy/Dockerfile.poller`, `deploy/Dockerfile.inference`, `deploy/Dockerfile.api`, `deploy/Dockerfile.frontend` |
+| **Description** | Multi-service Docker Compose for edge deployment. Backend images use Python 3.11-slim; frontend builds React static assets and serves them behind a lightweight web server. |
+| **Acceptance Criteria** | ① `docker-compose build` succeeds with no errors ② `docker-compose up` starts all services ③ API reachable at `localhost:8000` ④ Frontend reachable at `localhost:3000` ⑤ Redis healthy ⑥ Sensor poller logs readings (mock mode) |
 
 ### TASK-D15: CI Pipeline
 
@@ -344,5 +344,6 @@ flowchart TD
 | **1A** Hardware | A1–A3 | 1–2 |
 | **1B** Pipeline | B1–B8 | 2–4 |
 | **1C** ML Models | C1–C6 | 4–8 |
-| **1D** API/Dashboard | D1–D16 | 8–12 |
+| **1D** API/Frontend | D1–D16 | 8–12 |
 | **Total** | **33 tasks** | **12 weeks** |
+

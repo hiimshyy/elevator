@@ -3,9 +3,10 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from elevator_pdm.infrastructure.persistence.models import Base, Elevator, MaintenanceSchedule as ORMaintenance
-from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SQLiteMaintenanceRepo
 from elevator_pdm.domain.entities.maintenance import MaintenanceSchedule
+from elevator_pdm.infrastructure.persistence.models import Base, Elevator
+from elevator_pdm.infrastructure.persistence.models import MaintenanceSchedule as ORMaintenance
+from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SQLiteMaintenanceRepo
 
 
 @pytest.fixture
@@ -13,8 +14,8 @@ def repo():
     """Create an in-memory SQLite repo with schema initialized."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=engine)
+    session = session_local()
 
     # Create a test elevator first
     elevator = Elevator(
@@ -146,3 +147,40 @@ def test_create_multiple_maintenance_records(repo):
 
     results = repo.find_by_elevator("test-elev-001")
     assert len(results) == 3
+
+
+def test_find_all_returns_all_records(repo):
+    repo, session = repo
+
+    for index in range(2):
+        repo.create(
+            MaintenanceSchedule(
+                elevator_id="test-elev-001",
+                recommended_date=f"2025-02-0{index + 1}",
+                urgency="routine",
+                reason=f"Maintenance {index + 1}",
+            )
+        )
+
+    results = repo.find_all()
+
+    assert len(results) == 2
+    assert results[0].id is not None
+
+
+def test_get_by_id_returns_record(repo):
+    repo, session = repo
+    repo.create(
+        MaintenanceSchedule(
+            elevator_id="test-elev-001",
+            recommended_date="2025-02-01",
+            urgency="routine",
+            reason="Maintenance",
+        )
+    )
+
+    orm_record = session.query(ORMaintenance).first()
+    result = repo.get_by_id(orm_record.id)
+
+    assert result is not None
+    assert result.id == orm_record.id

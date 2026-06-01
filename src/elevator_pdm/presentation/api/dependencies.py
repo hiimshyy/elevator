@@ -2,22 +2,20 @@
 
 Wires concrete implementations to abstract interfaces using Depends().
 """
-from typing import Generator
+from collections.abc import Generator
 
-from fastapi import Depends, FastAPI
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from fastapi import Depends
+from sqlalchemy.orm import Session, sessionmaker
 
 from elevator_pdm.infrastructure.config.settings import Settings
-from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
-from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
-from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
-from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SQLiteInferenceRepo
-from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
-from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SQLiteMaintenanceRepo
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
+from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
+from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
+from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
+from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SQLiteInferenceRepo
+from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SQLiteMaintenanceRepo
+from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
 from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
-
 
 # Module-level singletons (lazy-initialized)
 _settings: Settings = None
@@ -41,8 +39,7 @@ def get_db_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
-        db_path = "sqlite:///data/elevator.db"  # TODO: make configurable
-        _engine, _ = create_engine_and_session(db_path)
+        _engine, _ = create_engine_and_session(settings.database.url)
     return _engine
 
 

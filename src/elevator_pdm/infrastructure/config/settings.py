@@ -1,10 +1,19 @@
 import os
+from pathlib import Path
+
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources import YamlConfigSettingsSource
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 CONFIG_YAML_PATH = os.path.join(BASE_DIR, "config", "config.yaml")
+
+
+def _default_database_url() -> str:
+    db_path = Path.home() / ".codex" / "memories" / "elevator.db"
+    return f"sqlite:///{db_path.as_posix()}"
 
 
 class SerialConfig(BaseModel):
@@ -63,6 +72,15 @@ class MqttConfig(BaseModel):
     qos: int = 1
 
 
+class DatabaseConfig(BaseModel):
+    url: str = _default_database_url()
+
+
+class WorkersConfig(BaseModel):
+    alert_pipeline_interval_s: int = 30
+    alert_pipeline_limit: int = 500
+
+
 class Settings(BaseSettings):
     serial: SerialConfig = SerialConfig()
     sensors: SensorsConfig = SensorsConfig()
@@ -71,6 +89,8 @@ class Settings(BaseSettings):
     models: ModelsConfig = ModelsConfig()
     alerts: AlertsConfig = AlertsConfig()
     mqtt: MqttConfig = MqttConfig()
+    database: DatabaseConfig = DatabaseConfig()
+    workers: WorkersConfig = WorkersConfig()
 
     model_config = SettingsConfigDict(env_prefix="ELEVATOR_", env_nested_delimiter="__")
 

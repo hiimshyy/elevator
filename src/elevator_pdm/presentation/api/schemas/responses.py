@@ -1,6 +1,6 @@
 """Pydantic response schemas for API."""
 from datetime import datetime
-from typing import Optional, List
+
 from pydantic import BaseModel
 
 
@@ -15,31 +15,31 @@ class HealthCheckResponse(BaseModel):
 class SensorReadingResponse(BaseModel):
     """Response schema for sensor reading."""
 
-    id: Optional[int] = None
+    id: int | None = None
     elevator_id: str
     timestamp: datetime
-    accel_rms_mg: float
-    velocity_rms_mms: Optional[float] = None
-    peak_accel_mg: Optional[float] = None
-    vib_temperature_c: Optional[float] = None
-    env_temperature_c: Optional[float] = None
-    env_humidity_pct: Optional[float] = None
-    load_kg: Optional[float] = None
+    accel_rms_mg: float | None = None
+    velocity_rms_mms: float | None = None
+    peak_accel_mg: float | None = None
+    vib_temperature_c: float | None = None
+    env_temperature_c: float | None = None
+    env_humidity_pct: float | None = None
+    load_kg: float | None = None
     synced: int = 0
 
 
 class InferenceResponse(BaseModel):
     """Response schema for inference result."""
 
-    id: Optional[int] = None
+    id: int | None = None
     elevator_id: str
     timestamp: datetime
     model_name: str
     model_version: str
     status: str  # NORMAL | WARNING | CRITICAL | OVERLOAD
     confidence: float
-    health_score: Optional[float] = None
-    features_json: Optional[str] = None
+    health_score: float | None = None
+    features_json: str | None = None
 
 
 class PredictResponse(BaseModel):
@@ -48,8 +48,8 @@ class PredictResponse(BaseModel):
     elevator_id: str
     status: str
     confidence: float
-    health_score: Optional[float] = None
-    features: Optional[dict] = None
+    health_score: float | None = None
+    features: dict | None = None
     alert_triggered: bool = False
     model_version: str
     inference_ms: float
@@ -61,35 +61,35 @@ class ElevatorResponse(BaseModel):
     id: str
     max_capacity_kg: int
     created_at: datetime
-    latest_health_score: Optional[float] = None
-    status: Optional[str] = None
+    latest_health_score: float | None = None
+    status: str | None = None
 
 
 class AlertResponse(BaseModel):
     """Response schema for alert."""
 
-    id: Optional[int] = None
+    id: int | None = None
     elevator_id: str
     timestamp: datetime
     severity: str
     message: str
     acknowledged: int = 0
-    acknowledged_by: Optional[str] = None
-    acknowledged_at: Optional[datetime] = None
+    acknowledged_by: str | None = None
+    acknowledged_at: datetime | None = None
 
 
 class MaintenanceResponse(BaseModel):
     """Response schema for maintenance schedule."""
 
-    id: Optional[int] = None
+    id: int | None = None
     elevator_id: str
     recommended_date: str
     urgency: str
     reason: str
-    estimated_rul_hours: Optional[float] = None
+    estimated_rul_hours: float | None = None
     status: str = "pending"
-    completed_at: Optional[str] = None
-    technician: Optional[str] = None
+    completed_at: str | None = None
+    technician: str | None = None
     created_at: datetime
 
 

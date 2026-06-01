@@ -1,6 +1,5 @@
 """Sensor reading domain entity."""
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -12,14 +11,16 @@ class SensorReading:
     timestamp: str  # UTC ISO datetime
 
     # ES-VS-01 vibration fields
-    accel_rms_mg: Optional[float] = None
-    velocity_rms_mms: Optional[float] = None
-    peak_accel_mg: Optional[float] = None
-    vib_temperature_c: Optional[float] = None
+    accel_rms_mg: float | None = None
+    velocity_rms_mms: float | None = None
+    peak_accel_mg: float | None = None
+    vib_temperature_c: float | None = None
 
     # ES35-SW environment fields
-    env_temperature_c: Optional[float] = None
-    env_humidity_pct: Optional[float] = None
+    env_temperature_c: float | None = None
+    env_humidity_pct: float | None = None
 
     # RW-ST01D load field
-    load_kg: Optional[float] = None
+    load_kg: float | None = None
+    id: int | None = None
+    synced: int = 0

@@ -67,7 +67,7 @@ All inference runs on an edge device co-located with the elevator controller pan
 | DB (edge) | **SQLite via SQLAlchemy** | PostgreSQL, InfluxDB | Zero-config, embedded, sufficient for PoC |
 | Cloud Comms| **MQTT (paho-mqtt)** | HTTP REST, Direct DB | Lightweight, QOS support, handles poor elevator shaft connectivity |
 | DB (cloud) | **PostgreSQL (RDS/Supabase)** | MongoDB, TimescaleDB | Relational, good for structured sensor + event data |
-| Dashboard | **Streamlit (PoC) → React (prod)** | Grafana, Tableau | Fast to build; React for production UX |
+| Dashboard | **React + TypeScript (Vite)** | Streamlit, Grafana, Tableau | Stronger long-lived UX, routing, state management, and WebSocket handling |
 | Alerting | **Slack webhook + Email (SMTP)** | PagerDuty | Zero cost, sufficient for PoC |
 | Containers | **Docker + docker-compose** | Kubernetes | Single-node deployment, simple to manage |
 | CI/CD | **GitHub Actions** | Jenkins | Free tier, integrates with GitHub repo |
@@ -311,15 +311,32 @@ elevator-pdm/
 │           │       ├── __init__.py
 │           │       ├── requests.py      # Pydantic request models
 │           │       └── responses.py     # Pydantic response models
-│           └── dashboard/
-│               ├── app.py              # Streamlit entry point
+│           └── dashboard/              # Legacy Streamlit PoC (to be retired)
+│               ├── app.py
 │               └── pages/
-│                   ├── 1_fleet.py
-│                   ├── 2_live.py
-│                   ├── 3_alerts.py
-│                   ├── 4_maintenance.py
-│                   ├── 5_models.py
-│                   └── 6_admin.py
+│                   ├── fleet.py
+│                   ├── live.py
+│                   └── alerts.py
+│
+├── frontend/                          # React frontend (target UI)
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── public/
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── pages/
+│       │   ├── FleetOverviewPage.tsx
+│       │   ├── LiveMonitorPage.tsx
+│       │   └── AlertsMaintenancePage.tsx
+│       ├── components/
+│       │   ├── charts/
+│       │   ├── alerts/
+│       │   └── maintenance/
+│       └── lib/
+│           ├── api.ts
+│           └── ws.ts
 │
 ├── models/                            # Trained ONNX model artifacts
 │   ├── vibration_anomaly_v1.onnx
@@ -370,7 +387,7 @@ elevator-pdm/
     ├── Dockerfile.poller
     ├── Dockerfile.inference
     ├── Dockerfile.api
-    ├── Dockerfile.dashboard
+    ├── Dockerfile.frontend
     ├── nginx.conf                     # Reverse proxy for production
     └── systemd/
         └── elevator-pdm.service       # systemd unit for non-Docker deploy
@@ -383,7 +400,8 @@ elevator-pdm/
 | **Domain** | `src/elevator_pdm/domain/` | Nothing (no imports from other layers) | Entities, value objects, interfaces (ports), domain events, business rules |
 | **Application** | `src/elevator_pdm/application/` | Domain only | Use cases (orchestration), DTOs, feature engineering, health scoring |
 | **Infrastructure** | `src/elevator_pdm/infrastructure/` | Application + Domain | Adapters: Modbus, SQLite/PostgreSQL, Redis, ONNX, Slack, SMTP |
-| **Presentation** | `src/elevator_pdm/presentation/` | Application + Domain | FastAPI routers, WebSocket, Pydantic schemas, Streamlit pages |
+| **Presentation** | `src/elevator_pdm/presentation/` | Application + Domain | FastAPI routers, WebSocket, Pydantic schemas |
+| **Frontend** | `frontend/` | API contract only | React routes, UI state, charts, browser-side WebSocket client |
 
 > [!IMPORTANT]
 > **Dependency Rule:** Inner layers NEVER import from outer layers. Domain defines interfaces (ports); Infrastructure provides implementations (adapters). Use cases in Application depend only on abstractions from Domain.
@@ -574,16 +592,18 @@ Pushes JSON every 5s with latest readings + inference result.
 
 ## 6. Frontend Structure
 
-### 6.1 Streamlit App (PoC)
+### 6.1 React App
 
-| Page | File | Content |
+| Route | File | Content |
 |---|---|---|
-| Fleet Overview | `src/elevator_pdm/presentation/dashboard/pages/fleet.py` | Elevator list, status badges, health indicators |
-| Live Monitor | `src/elevator_pdm/presentation/dashboard/pages/live.py` | Real-time charts (accel, load, temp), 5s refresh |
-| Alerts & Maintenance | `src/elevator_pdm/presentation/dashboard/pages/alerts.py` | Alert list and maintenance actions in one page |
+| `/fleet` | `frontend/src/pages/FleetOverviewPage.tsx` | Elevator list, status badges, health indicators |
+| `/live` | `frontend/src/pages/LiveMonitorPage.tsx` | REST history + WebSocket live charts (accel, load, temp) |
+| `/alerts` | `frontend/src/pages/AlertsMaintenancePage.tsx` | Alert list, acknowledge flow, maintenance actions |
 
 > [!NOTE]
-> Planned split pages (`maintenance.py`, `models.py`, `admin.py`) are not yet implemented in the current repository.
+> The repository currently still contains a Streamlit PoC under
+> `src/elevator_pdm/presentation/dashboard/`. That code should be treated as a legacy
+> fallback until the React app reaches feature parity.
 
 ---
 
@@ -591,14 +611,14 @@ Pushes JSON every 5s with latest readings + inference result.
 
 ### 7.1 Deployment Status (Current vs Planned)
 
-- **Current repo state (2026-05-29):** No committed `docker-compose.yml` yet; `deploy/systemd/` exists as the deployment placeholder.
-- **Planned:** Add edge `docker-compose.yml` after service entrypoints are finalized and MQTT cloud sync worker is implemented.
+- **Current repo state (2026-06-01):** Edge `docker-compose.yml` now starts the FastAPI API and the continuous alert worker from `deploy/Dockerfile.app`.
+- **Planned:** Extend the stack with remaining edge services (sensor polling, MQTT cloud sync, frontend) as those entrypoints are finalized.
 
 | Deployment Artifact | Status | Notes |
 |---|---|---|
-| `docker-compose.yml` (edge) | Planned | Not committed in this repository yet |
-| Dockerfiles per service | Planned | Referenced in architecture, not yet committed |
-| `deploy/systemd/` unit(s) | Placeholder | Directory exists; unit files still to be added |
+| `docker-compose.yml` (edge) | Implemented | Starts `api` and `alert-worker`, both sharing `/app/data/elevator.db` |
+| `deploy/Dockerfile.app` | Implemented | Shared Python image for API and worker commands |
+| `deploy/systemd/` unit(s) | Placeholder | Not committed yet |
 
 ### 7.2 config.yaml
 
@@ -682,13 +702,14 @@ alerts:
 - [x] Implement RUL estimation via linear regression on 7-day health_score trend
 - [ ] Export all models to ONNX, benchmark inference time on edge device
 
-### Phase 1D — API & Dashboard (Week 8–12)
+### Phase 1D — API & Frontend (Week 8–12)
 
 - [x] Implement FastAPI server with all endpoints (Section 5)
 - [x] Implement WebSocket `/ws/sensors/{elevator_id}` with 5s push cadence
 - [x] Implement `alert_dispatcher` with Slack + SMTP + rate limiting
-- [x] Build Streamlit dashboard: Fleet Overview, Live Monitor, Alerts & Maintenance
-- [ ] Deploy all services via docker-compose on edge device
+- [x] Build temporary Streamlit dashboard: Fleet Overview, Live Monitor, Alerts & Maintenance
+- [ ] Replace Streamlit dashboard with React frontend: Fleet Overview, Live Monitor, Alerts & Maintenance
+- [x] Deploy API + alert worker via docker-compose on edge device
 - [ ] Set up Cloud MQTT Broker (e.g. EMQX, Mosquitto) and configure edge credentials
 - [ ] Implement edge cloud-sync job and cloud subscriber worker to insert into PostgreSQL
 - [ ] End-to-end test: simulate anomaly → inference → alert → dashboard update
@@ -697,3 +718,4 @@ alerts:
 ---
 
 > **Source:** [Elevator_PdM_Implementation_Plan.docx](./Elevator_PdM_Implementation_Plan.docx)
+

@@ -1,10 +1,10 @@
 """SQLite implementation of AlertRepository."""
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from elevator_pdm.domain.interfaces.alert_repository import AlertRepository
+from sqlalchemy.orm import Session
+
 from elevator_pdm.domain.entities.alert import Alert
+from elevator_pdm.domain.interfaces.alert_repository import AlertRepository
 from elevator_pdm.infrastructure.persistence.models import Alert as ORMAlert
 
 
@@ -32,6 +32,7 @@ class SQLiteAlertRepo(AlertRepository):
     def _to_domain(self, orm_alert: ORMAlert) -> Alert:
         """Convert ORM model to domain entity."""
         return Alert(
+            id=orm_alert.id,
             elevator_id=orm_alert.elevator_id,
             inference_id=orm_alert.inference_id,
             alert_type=orm_alert.alert_type,
@@ -53,12 +54,35 @@ class SQLiteAlertRepo(AlertRepository):
     def find_by_elevator(
         self,
         elevator_id: str,
-        severity: Optional[str] = None,
-        acknowledged: Optional[bool] = None,
-    ) -> List[Alert]:
+        severity: str | None = None,
+        acknowledged: bool | None = None,
+    ) -> list[Alert]:
         """Query alerts for an elevator with optional filters."""
         query = self._session.query(ORMAlert).filter_by(elevator_id=elevator_id)
 
+        return self._run_filtered_query(query, severity=severity, acknowledged=acknowledged)
+
+    def find_all(
+        self,
+        severity: str | None = None,
+        acknowledged: bool | None = None,
+    ) -> list[Alert]:
+        """Query alerts across all elevators."""
+        query = self._session.query(ORMAlert)
+        return self._run_filtered_query(query, severity=severity, acknowledged=acknowledged)
+
+    def get_by_id(self, alert_id: int) -> Alert | None:
+        """Get a single alert by database ID."""
+        orm_alert = self._session.query(ORMAlert).filter_by(id=alert_id).first()
+        return self._to_domain(orm_alert) if orm_alert else None
+
+    def _run_filtered_query(
+        self,
+        query,
+        severity: str | None = None,
+        acknowledged: bool | None = None,
+    ) -> list[Alert]:
+        """Apply common alert filters and return domain entities."""
         if severity:
             query = query.filter_by(severity=severity)
         if acknowledged is not None:
@@ -73,5 +97,5 @@ class SQLiteAlertRepo(AlertRepository):
         if orm_alert:
             orm_alert.acknowledged = 1
             orm_alert.acknowledged_by = acknowledged_by
-            orm_alert.acknowledged_at = datetime.now(timezone.utc).isoformat()
+            orm_alert.acknowledged_at = datetime.now(UTC).isoformat()
             self._session.commit()

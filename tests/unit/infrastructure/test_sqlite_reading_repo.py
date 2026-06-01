@@ -3,9 +3,15 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from elevator_pdm.infrastructure.persistence.models import Base, Elevator, SensorReading as ORMSensorReading
-from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
 from elevator_pdm.domain.entities.sensor_reading import SensorReading
+from elevator_pdm.infrastructure.persistence.models import (
+    Base,
+    Elevator,
+)
+from elevator_pdm.infrastructure.persistence.models import (
+    SensorReading as ORMSensorReading,
+)
+from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
 
 
 @pytest.fixture
@@ -13,8 +19,8 @@ def repo():
     """Create an in-memory SQLite repo with schema initialized."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=engine)
+    session = session_local()
 
     # Create a test elevator first
     elevator = Elevator(
@@ -117,6 +123,8 @@ def test_find_latest_returns_most_recent(repo):
     latest = repo.find_latest("test-elev-001")
     assert latest is not None
     assert latest.timestamp == "2025-01-01T01:00:00+00:00"
+    assert latest.id is not None
+    assert latest.synced == 0
 
 
 def test_find_latest_returns_none_for_unknown_elevator(repo):

@@ -1,6 +1,5 @@
 """Alert repository interface (port)."""
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from elevator_pdm.domain.entities.alert import Alert
 
@@ -17,10 +16,24 @@ class AlertRepository(ABC):
     def find_by_elevator(
         self,
         elevator_id: str,
-        severity: Optional[str] = None,
-        acknowledged: Optional[bool] = None,
-    ) -> List[Alert]:
+        severity: str | None = None,
+        acknowledged: bool | None = None,
+    ) -> list[Alert]:
         """Query alerts for an elevator with optional filters."""
+        ...
+
+    @abstractmethod
+    def find_all(
+        self,
+        severity: str | None = None,
+        acknowledged: bool | None = None,
+    ) -> list[Alert]:
+        """Query alerts across all elevators with optional filters."""
+        ...
+
+    @abstractmethod
+    def get_by_id(self, alert_id: int) -> Alert | None:
+        """Get a single alert by its database ID."""
         ...
 
     @abstractmethod

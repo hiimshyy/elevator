@@ -1,14 +1,12 @@
 """Tests for notification services."""
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, Mock, patch
 
-from elevator_pdm.infrastructure.notifications.slack_notifier import SlackNotifier
-from elevator_pdm.infrastructure.notifications.email_notifier import EmailNotifier
-from elevator_pdm.infrastructure.notifications.composite_notifier import CompositeNotifier
 from elevator_pdm.application.use_cases.dispatch_alert import DispatchAlert
-from elevator_pdm.domain.interfaces.alert_repository import AlertRepository
 from elevator_pdm.infrastructure.config.settings import Settings
+from elevator_pdm.infrastructure.notifications.composite_notifier import CompositeNotifier
+from elevator_pdm.infrastructure.notifications.email_notifier import EmailNotifier
+from elevator_pdm.infrastructure.notifications.slack_notifier import SlackNotifier
 
 
 class MockAlertRepository:
@@ -17,7 +15,7 @@ class MockAlertRepository:
     def __init__(self):
         self.alerts = []
 
-    def create(self, alert):
+    def save(self, alert):
         self.alerts.append(alert)
 
     def find_by_elevator(self, elevator_id, severity=None):
@@ -47,7 +45,7 @@ class TestSlackNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="High vibration detected",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is True
@@ -68,7 +66,7 @@ class TestSlackNotifier:
             elevator_id="elev-001",
             severity="CRITICAL",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is False
@@ -82,7 +80,7 @@ class TestSlackNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is False
@@ -97,7 +95,7 @@ class TestSlackNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is False
@@ -125,7 +123,7 @@ class TestEmailNotifier:
             elevator_id="elev-001",
             severity="CRITICAL",
             message="Motor overheating",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is True
@@ -144,7 +142,7 @@ class TestEmailNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is False
@@ -159,7 +157,7 @@ class TestEmailNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert result is False
@@ -184,7 +182,7 @@ class TestCompositeNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         mock_slack.send.assert_called_once()
@@ -208,7 +206,7 @@ class TestCompositeNotifier:
             elevator_id="elev-001",
             severity="WARNING",
             message="Test",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert results["Slack"] is False
@@ -246,17 +244,18 @@ class TestDispatchAlert:
             elevator_id="elev-001",
             severity="WARNING",
             message="High vibration",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         assert dispatched is True
         assert reason == "dispatched"
         assert len(self.repo.alerts) == 1
         assert self.repo.alerts[0].severity == "WARNING"
+        assert self.repo.alerts[0].alert_type == "HEALTH_LOW"
 
     def test_rate_limiter_suppresses_duplicate_alerts(self):
         """④ Rate limiter suppresses duplicate alerts within 15 min."""
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         # First alert - should dispatch
         dispatched1, _ = self.dispatcher.execute(
@@ -279,7 +278,7 @@ class TestDispatchAlert:
 
     def test_different_alert_types_not_suppressed(self):
         """⑤ Different alert types are not suppressed."""
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         # First alert - WARNING
         dispatched1, _ = self.dispatcher.execute(
@@ -302,7 +301,7 @@ class TestDispatchAlert:
 
     def test_different_elevators_not_suppressed(self):
         """Different elevators are not suppressed."""
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         # First elevator
         dispatched1, _ = self.dispatcher.execute(
@@ -324,7 +323,7 @@ class TestDispatchAlert:
 
     def test_clears_rate_limit_cache(self):
         """Clear cache works."""
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         # Dispatch an alert
         self.dispatcher.execute(
@@ -345,3 +344,19 @@ class TestDispatchAlert:
             timestamp=timestamp,
         )
         assert dispatched is True
+
+    def test_normalizes_overload_to_emergency(self):
+        """OVERLOAD maps to an alert type compatible with the DB schema."""
+        timestamp = datetime.now(UTC).isoformat()
+
+        dispatched, reason = self.dispatcher.execute(
+            elevator_id="elev-001",
+            severity="OVERLOAD",
+            message="Cabin overload",
+            timestamp=timestamp,
+        )
+
+        assert dispatched is True
+        assert reason == "dispatched"
+        assert self.repo.alerts[0].severity == "EMERGENCY"
+        assert self.repo.alerts[0].alert_type == "OVERLOAD"

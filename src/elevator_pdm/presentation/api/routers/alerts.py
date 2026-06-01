@@ -1,46 +1,36 @@
 """Alerts router (Task D5)."""
-from datetime import datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
-from elevator_pdm.presentation.api.dependencies import get_alert_repository
 from elevator_pdm.domain.interfaces.alert_repository import AlertRepository
+from elevator_pdm.presentation.api.dependencies import get_alert_repository
 from elevator_pdm.presentation.api.schemas.requests import AlertAcknowledgeRequest
 from elevator_pdm.presentation.api.schemas.responses import AlertResponse
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[AlertResponse])
+@router.get("/", response_model=list[AlertResponse])
 def list_alerts(
-    elevator_id: Optional[str] = None,
-    severity: Optional[str] = None,
-    acknowledged: Optional[bool] = None,
+    elevator_id: str | None = None,
+    severity: str | None = None,
+    acknowledged: bool | None = None,
     repo: AlertRepository = Depends(get_alert_repository),
 ):
     """List alerts with optional filters."""
-    # Get all alerts for elevator
     if elevator_id:
-        alerts = repo.find_by_elevator(elevator_id, severity=severity)
+        alerts = repo.find_by_elevator(elevator_id, severity=severity, acknowledged=acknowledged)
     else:
-        # Get all alerts (would need a new repo method, for now use find_by_elevator with empty)
-        alerts = []
-
-    # Filter by acknowledged status if specified
-    if acknowledged is not None:
-        ack_int = 1 if acknowledged else 0
-        alerts = [a for a in alerts if a.acknowledged == ack_int]
+        alerts = repo.find_all(severity=severity, acknowledged=acknowledged)
 
     return [
         AlertResponse(
             id=a.id,
             elevator_id=a.elevator_id,
-            timestamp=a.timestamp,
+            timestamp=a.sent_at,
             severity=a.severity,
             message=a.message,
-            acknowledged=a.acknowledged,
+            acknowledged=1 if a.acknowledged else 0,
             acknowledged_by=a.acknowledged_by,
             acknowledged_at=a.acknowledged_at,
         )
@@ -55,37 +45,24 @@ def acknowledge_alert(
     repo: AlertRepository = Depends(get_alert_repository),
 ):
     """Acknowledge an alert."""
-    # Get all alerts to find the one to acknowledge
-    # (simplified - in production, would have a get_by_id method)
-    alerts = repo.find_by_elevator("")  # This is a limitation of current repo
-
-    # Find alert by id
-    alert = next((a for a in alerts if a.id == alert_id), None)
+    alert = repo.get_by_id(alert_id)
     if not alert:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Alert {alert_id} not found",
         )
 
-    # Acknowledge
-    repo.acknowledge(
-        alert_id=alert_id,
-        technician=request.technician,
-        timestamp=datetime.now().isoformat(),
-    )
-
-    # Return updated alert
-    alert.acknowledged = 1
-    alert.acknowledged_by = request.technician
-    alert.acknowledged_at = datetime.now().isoformat()
+    repo.acknowledge(alert_id=alert_id, acknowledged_by=request.technician)
+    updated = repo.get_by_id(alert_id)
+    assert updated is not None
 
     return AlertResponse(
-        id=alert.id,
-        elevator_id=alert.elevator_id,
-        timestamp=alert.timestamp,
-        severity=alert.severity,
-        message=alert.message,
-        acknowledged=alert.acknowledged,
-        acknowledged_by=alert.acknowledged_by,
-        acknowledged_at=alert.acknowledged_at,
+        id=updated.id,
+        elevator_id=updated.elevator_id,
+        timestamp=updated.sent_at,
+        severity=updated.severity,
+        message=updated.message,
+        acknowledged=1 if updated.acknowledged else 0,
+        acknowledged_by=updated.acknowledged_by,
+        acknowledged_at=updated.acknowledged_at,
     )

@@ -1,6 +1,7 @@
 """Tests for RunInferenceUseCase."""
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from elevator_pdm.application.use_cases.run_inference import RunInferenceUseCase
 from elevator_pdm.domain.entities.inference_result import InferenceResult
@@ -185,6 +186,27 @@ def test_sets_features_json(use_case):
     # Features should be serialized to JSON string
     assert "accel_rms_mean" in result.features_json
     assert "load_pct" in result.features_json
+
+
+def test_uses_explicit_timestamp_when_provided(use_case):
+    uc, runtime, repo, bus = use_case
+
+    runtime.predict.return_value = InferenceResult(
+        elevator_id="",
+        timestamp="",
+        model_name="vibration_anomaly",
+        model_version="1.0",
+        status="WARNING",
+        confidence=0.85,
+    )
+
+    result = uc.execute(
+        "test-elev-001",
+        {"accel_rms_mean": 42.5},
+        timestamp="2026-06-01T12:00:00+00:00",
+    )
+
+    assert result.timestamp == "2026-06-01T12:00:00+00:00"
 
 
 def test_raises_error_if_model_not_loaded(use_case):

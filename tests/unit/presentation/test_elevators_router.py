@@ -1,12 +1,11 @@
 """Regression tests for elevator API router."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import HTTPException
 
-from elevator_pdm.presentation.api.routers.elevators import get_elevator
-from elevator_pdm.presentation.api.routers.elevators import get_readings
+from elevator_pdm.presentation.api.routers.elevators import get_elevator, get_readings
 
 
 class _FakeElevatorRepo:
@@ -52,8 +51,8 @@ class _FakeInferenceRepo:
 def test_get_readings_passes_from_ts_and_to_ts_and_returns_payload():
     repo = _FakeReadingRepo()
     elev_repo = _FakeElevatorRepo()
-    from_time = datetime(2026, 5, 29, 0, 0, tzinfo=timezone.utc)
-    to_time = datetime(2026, 5, 29, 1, 0, tzinfo=timezone.utc)
+    from_time = datetime(2026, 5, 29, 0, 0, tzinfo=UTC)
+    to_time = datetime(2026, 5, 29, 1, 0, tzinfo=UTC)
 
     result = get_readings(
         elevator_id="elev-001",
