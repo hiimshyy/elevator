@@ -17,6 +17,13 @@ from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SQLite
 from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
 
 
+def ensure_database_schema(engine) -> None:
+    """Create missing tables so worker can start before API."""
+    from elevator_pdm.infrastructure.persistence import models
+
+    models.Base.metadata.create_all(bind=engine)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--elevator-id", help="Only process one elevator")
@@ -45,7 +52,8 @@ def main() -> None:
     settings = Settings()
     limit = args.limit or settings.workers.alert_pipeline_limit
     interval_s = args.interval_s or settings.workers.alert_pipeline_interval_s
-    _, session_factory = create_engine_and_session(settings.database.url)
+    engine, session_factory = create_engine_and_session(settings.database.url)
+    ensure_database_schema(engine)
 
     def list_elevator_ids() -> list[str]:
         session = session_factory()
