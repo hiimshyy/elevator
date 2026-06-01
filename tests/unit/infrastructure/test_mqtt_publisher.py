@@ -4,6 +4,8 @@ import sys
 import types
 from unittest.mock import MagicMock, patch
 
+from pytest import raises
+
 # Provide a minimal paho-mqtt stub when the dependency is unavailable
 if "paho.mqtt.client" not in sys.modules:
     paho_module = types.ModuleType("paho")
@@ -144,3 +146,13 @@ def test_publish_returns_false_on_exception(mock_client_class):
     result = publisher.publish_reading({"x": 1})
 
     assert result is False
+
+
+def test_init_raises_when_required_mqtt_fields_missing():
+    settings = Settings()
+    settings.mqtt.broker_url = ""
+    settings.mqtt.username = ""
+    settings.mqtt.password = ""
+
+    with raises(ValueError, match="ELEVATOR_MQTT__BROKER_URL"):
+        MqttPublisher(settings=settings)

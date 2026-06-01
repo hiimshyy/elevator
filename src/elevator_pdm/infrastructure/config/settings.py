@@ -62,10 +62,10 @@ class AlertsConfig(BaseModel):
 
 
 class MqttConfig(BaseModel):
-    broker_url: str = "61.28.230.132"
+    broker_url: str = ""
     port: int = 1883
-    username: str = "embody"
-    password: str = "rnd@2025"
+    username: str = ""
+    password: str = ""
     topic_r: str = "embody/r"
     topic_w: str = "embody/w"
     client_id: str = "embody002"

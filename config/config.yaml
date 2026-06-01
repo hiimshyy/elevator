@@ -42,10 +42,10 @@ alerts:
     - tech@your-company.com
 
 mqtt:
-  broker_url: "61.28.230.132"
+  broker_url: ""
   port: 1883
-  username: "embody"
-  password: "rnd@2025"
+  username: ""
+  password: ""
   topic_r: "embody/r"
   topic_w: "embody/w"
   client_id: "embody002"
