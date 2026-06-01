@@ -17,6 +17,16 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/api/health").read()
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   alert-worker:
@@ -32,7 +42,8 @@ services:
       - ./data:/app/data
       - ./models:/app/models:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -44,5 +55,6 @@ services:
     ports:
       - "5173:5173"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
