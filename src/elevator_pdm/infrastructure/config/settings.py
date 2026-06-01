@@ -81,6 +81,10 @@ class WorkersConfig(BaseModel):
     alert_pipeline_limit: int = 500
 
 
+class ApiConfig(BaseModel):
+    key: str = "elevator-secret-key-123"
+
+
 class Settings(BaseSettings):
     serial: SerialConfig = SerialConfig()
     sensors: SensorsConfig = SensorsConfig()
@@ -91,6 +95,7 @@ class Settings(BaseSettings):
     mqtt: MqttConfig = MqttConfig()
     database: DatabaseConfig = DatabaseConfig()
     workers: WorkersConfig = WorkersConfig()
+    api: ApiConfig = ApiConfig()
 
     model_config = SettingsConfigDict(env_prefix="ELEVATOR_", env_nested_delimiter="__")
 

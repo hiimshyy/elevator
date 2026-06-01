@@ -1,11 +1,19 @@
 """API key authentication middleware."""
-from typing import Optional
+from functools import lru_cache
 
 from fastapi import Header, HTTPException, status
 
+from elevator_pdm.infrastructure.config.settings import Settings
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Load and cache application settings for auth checks."""
+    return Settings()
+
 
 def verify_api_key(
-    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key")
+    x_api_key: str | None = Header(default=None, alias="X-API-Key")
 ) -> str:
     """Validate API key from X-API-Key header.
 
@@ -18,7 +26,7 @@ def verify_api_key(
     Raises:
         HTTPException: If key is missing or invalid.
     """
-    valid_key = "elevator-secret-key-123"  # TODO: load from Settings
+    valid_key = get_settings().api.key
 
     if x_api_key is None:
         raise HTTPException(
