@@ -25,6 +25,8 @@ data/logs/
 # Models (large binaries)
 models/*.onnx
 !models/README.md
+!models/health_score_v1.onnx
+!models/vibration_anomaly_v1.onnx
 
 # OS files
 .DS_Store
