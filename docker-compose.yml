@@ -12,6 +12,9 @@ services:
       - "8000"
     environment:
       ELEVATOR_DATABASE__URL: sqlite:////app/data/elevator.db
+      ELEVATOR_MQTT__BROKER_URL: ${ELEVATOR_MQTT__BROKER_URL}
+      ELEVATOR_MQTT__USERNAME: ${ELEVATOR_MQTT__USERNAME}
+      ELEVATOR_MQTT__PASSWORD: ${ELEVATOR_MQTT__PASSWORD}
     ports:
       - "8000:8000"
     volumes:
@@ -38,6 +41,9 @@ services:
       - scripts/process_alert_pipeline.py
     environment:
       ELEVATOR_DATABASE__URL: sqlite:////app/data/elevator.db
+      ELEVATOR_MQTT__BROKER_URL: ${ELEVATOR_MQTT__BROKER_URL}
+      ELEVATOR_MQTT__USERNAME: ${ELEVATOR_MQTT__USERNAME}
+      ELEVATOR_MQTT__PASSWORD: ${ELEVATOR_MQTT__PASSWORD}
     volumes:
       - ./data:/app/data
       - ./models:/app/models:ro
