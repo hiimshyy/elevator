@@ -1,24 +1,23 @@
 """Predict router (Task D4)."""
 import time
-from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from elevator_pdm.presentation.api.dependencies import (
-    get_db_session,
-    get_reading_repository,
-    get_inference_repository,
-    get_vibration_runtime,
-    get_health_runtime,
-    get_sensor_gateway,
-)
-from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
+from elevator_pdm.application.services.feature_engineer import FeatureEngineer
+from elevator_pdm.application.use_cases.run_inference import RunInferenceUseCase as RunInference
 from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
+from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
 from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
-from elevator_pdm.application.use_cases.run_inference import RunInferenceUseCase as RunInference
-from elevator_pdm.application.services.feature_engineer import FeatureEngineer
+from elevator_pdm.presentation.api.dependencies import (
+    get_db_session,
+    get_health_runtime,
+    get_inference_repository,
+    get_reading_repository,
+    get_sensor_gateway,
+    get_vibration_runtime,
+)
 from elevator_pdm.presentation.api.schemas.requests import PredictRequest
 from elevator_pdm.presentation.api.schemas.responses import PredictResponse
 
@@ -33,7 +32,7 @@ async def predict(
     inference_repo: InferenceRepository = Depends(get_inference_repository),
     vibration_runtime: OnnxRuntime = Depends(get_vibration_runtime),
     health_runtime: OnnxRuntime = Depends(get_health_runtime),
-    sensor_gw: MockSensorGateway = Depends(get_sensor_gateway),
+    sensor_gw: MockGateway = Depends(get_sensor_gateway),
 ):
     """Run inference on sensor readings.
 
