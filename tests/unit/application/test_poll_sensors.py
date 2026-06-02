@@ -1,7 +1,8 @@
 """Tests for PollSensorsUseCase."""
+
+from unittest.mock import MagicMock
+
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
 
 from elevator_pdm.application.use_cases.poll_sensors import PollSensorsUseCase
 from elevator_pdm.domain.entities.sensor_reading import SensorReading
@@ -14,12 +15,14 @@ def mocks():
     gateway = MagicMock()
     repo = MagicMock()
     queue = MagicMock()
-    use_case = PollSensorsUseCase(gateway, repo, queue)
-    return gateway, repo, queue, use_case
+    mqtt_publisher = MagicMock()
+    mqtt_publisher.publish_reading.return_value = True
+    use_case = PollSensorsUseCase(gateway, repo, queue, mqtt_publisher=mqtt_publisher)
+    return gateway, repo, queue, mqtt_publisher, use_case
 
 
 def test_calls_all_three_sensor_methods(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     # Setup successful returns
     gateway.read_vibration.return_value = {
@@ -42,7 +45,7 @@ def test_calls_all_three_sensor_methods(mocks):
 
 
 def test_persists_readings_to_repository(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     gateway.read_vibration.return_value = {
         "sensor_id": "ES-VS-01", "accel_rms_mg": 42.5, "timestamp": "2025-01-01T00:00:00+00:00"
@@ -61,7 +64,7 @@ def test_persists_readings_to_repository(mocks):
 
 
 def test_enqueues_readings_to_redis(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     gateway.read_vibration.return_value = {
         "sensor_id": "ES-VS-01", "accel_rms_mg": 42.5, "timestamp": "2025-01-01T00:00:00+00:00"
@@ -79,8 +82,26 @@ def test_enqueues_readings_to_redis(mocks):
     assert queue.enqueue.call_count == 3
 
 
+def test_publishes_readings_to_mqtt(mocks):
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
+
+    gateway.read_vibration.return_value = {
+        "sensor_id": "ES-VS-01", "accel_rms_mg": 42.5, "timestamp": "2025-01-01T00:00:00+00:00"
+    }
+    gateway.read_temp_humidity.return_value = {
+        "sensor_id": "ES35-SW", "temperature_c": 25.0, "timestamp": "2025-01-01T00:00:00+00:00"
+    }
+    gateway.read_load.return_value = {
+        "sensor_id": "RW-ST01D", "load_kg": 450.0, "timestamp": "2025-01-01T00:00:00+00:00"
+    }
+
+    use_case.execute("test-elev-001")
+
+    assert mqtt_publisher.publish_reading.call_count == 3
+
+
 def test_single_sensor_failure_does_not_block_others(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     # Only vibration fails
     gateway.read_vibration.side_effect = SensorUnavailableError("Vibration sensor unavailable")
@@ -102,7 +123,7 @@ def test_single_sensor_failure_does_not_block_others(mocks):
 
 
 def test_backoff_doubles_on_consecutive_errors(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     # Make vibration sensor always fail
     gateway.read_vibration.side_effect = SensorUnavailableError("Timeout")
@@ -124,7 +145,7 @@ def test_backoff_doubles_on_consecutive_errors(mocks):
 
 
 def test_backoff_caps_at_max_60s(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     # Make vibration sensor always fail
     gateway.read_vibration.side_effect = SensorUnavailableError("Timeout")
@@ -139,7 +160,7 @@ def test_backoff_caps_at_max_60s(mocks):
 
 
 def test_backoff_resets_on_success(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     # First, make it fail
     gateway.read_vibration.side_effect = SensorUnavailableError("Timeout")
@@ -159,7 +180,7 @@ def test_backoff_resets_on_success(mocks):
 
 
 def test_builds_correct_sensor_reading_entity(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     gateway.read_vibration.return_value = {
         "sensor_id": "ES-VS-01",
@@ -195,7 +216,7 @@ def test_builds_correct_sensor_reading_entity(mocks):
 
 
 def test_get_backoff_status(mocks):
-    gateway, repo, queue, use_case = mocks
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
 
     # Simulate some errors
     gateway.read_vibration.side_effect = SensorUnavailableError("Timeout")

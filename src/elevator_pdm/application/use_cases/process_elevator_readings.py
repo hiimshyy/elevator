@@ -1,4 +1,5 @@
 """Process persisted sensor readings into inference results and alerts."""
+import logging
 
 from elevator_pdm.application.services.feature_engineer import FeatureEngineer
 from elevator_pdm.application.use_cases.dispatch_alert import DispatchAlert
@@ -11,6 +12,8 @@ from elevator_pdm.domain.interfaces.inference_repository import InferenceReposit
 from elevator_pdm.domain.interfaces.model_runtime import ModelRuntime
 from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.infrastructure.config.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessElevatorReadingsUseCase:
@@ -25,6 +28,7 @@ class ProcessElevatorReadingsUseCase:
         model_runtime: ModelRuntime,
         settings: Settings | None = None,
         notifier: object | None = None,
+        mqtt_publisher: object | None = None,
     ) -> None:
         self._elevator_repo = elevator_repo
         self._reading_repo = reading_repo
@@ -33,6 +37,7 @@ class ProcessElevatorReadingsUseCase:
         self._model_runtime = model_runtime
         self._settings = settings or Settings()
         self._notifier = notifier
+        self._mqtt_publisher = mqtt_publisher
 
     def execute(self, elevator_id: str, limit: int = 500) -> dict[str, int | str | None]:
         elevator = self._elevator_repo.get_by_id(elevator_id)
@@ -77,6 +82,7 @@ class ProcessElevatorReadingsUseCase:
             )
             processed += 1
             last_status = result.status
+            self._publish_status(reading=reading, inference_result=result, alert_sent=False)
 
             if result.status == "NORMAL":
                 continue
@@ -96,6 +102,7 @@ class ProcessElevatorReadingsUseCase:
             )
             if dispatched:
                 alerts_created += 1
+                self._publish_status(reading=reading, inference_result=result, alert_sent=True)
             elif reason == "rate_limited":
                 alerts_suppressed += 1
 
@@ -182,3 +189,31 @@ class ProcessElevatorReadingsUseCase:
                 f"(confidence={inference_result.confidence:.2f}, health_score={health_score_text})"
             ),
         )
+
+    def _publish_status(
+        self,
+        *,
+        reading: SensorReading,
+        inference_result: InferenceResult,
+        alert_sent: bool,
+    ) -> None:
+        if self._mqtt_publisher is None:
+            return
+
+        payload = {
+            "event": "inference_result",
+            "elevator_id": reading.elevator_id,
+            "sensor_id": reading.sensor_id,
+            "timestamp": reading.timestamp,
+            "status": inference_result.status,
+            "confidence": inference_result.confidence,
+            "health_score": inference_result.health_score,
+            "alert_sent": alert_sent,
+            "reading": self._reading_to_feature_input(reading),
+        }
+        try:
+            published = self._mqtt_publisher.publish_status(payload)
+            if not published:
+                logger.warning("MQTT status publish returned false for %s", reading.elevator_id)
+        except Exception as exc:
+            logger.warning("MQTT status publish failed for %s: %s", reading.elevator_id, exc)

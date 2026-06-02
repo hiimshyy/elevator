@@ -1,13 +1,15 @@
 """Poll sensors use case — orchestrates sensor reads, persistence, and queuing."""
-from typing import Optional
-from datetime import datetime, timezone
+import logging
 from dataclasses import asdict
+from datetime import UTC, datetime
 
-from elevator_pdm.domain.interfaces.sensor_gateway import SensorGateway
-from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
-from elevator_pdm.infrastructure.messaging.redis_queue import RedisQueue
 from elevator_pdm.domain.entities.sensor_reading import SensorReading
 from elevator_pdm.domain.exceptions import SensorUnavailableError
+from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
+from elevator_pdm.domain.interfaces.sensor_gateway import SensorGateway
+from elevator_pdm.infrastructure.messaging.redis_queue import RedisQueue
+
+logger = logging.getLogger(__name__)
 
 
 class PollSensorsUseCase:
@@ -21,10 +23,12 @@ class PollSensorsUseCase:
         sensor_gateway: SensorGateway,
         reading_repo: ReadingRepository,
         redis_queue: RedisQueue,
+        mqtt_publisher: object | None = None,
     ) -> None:
         self._gateway = sensor_gateway
         self._reading_repo = reading_repo
         self._redis_queue = redis_queue
+        self._mqtt_publisher = mqtt_publisher
 
         # Track consecutive errors per sensor for backoff
         self._consecutive_errors = {
@@ -47,7 +51,7 @@ class PollSensorsUseCase:
         sensor_key: str,
         read_method,
         elevator_id: str,
-    ) -> Optional[SensorReading]:
+    ) -> SensorReading | None:
         """Poll a single sensor with error handling and backoff tracking."""
         try:
             data = read_method()
@@ -57,17 +61,19 @@ class PollSensorsUseCase:
             reading = SensorReading(
                 elevator_id=elevator_id,
                 sensor_id=data.get("sensor_id", ""),
-                timestamp=data.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                timestamp=data.get("timestamp", datetime.now(UTC).isoformat()),
                 accel_rms_mg=data.get("accel_rms_mg"),
                 velocity_rms_mms=data.get("velocity_rms_mms"),
                 peak_accel_mg=data.get("peak_accel_mg"),
                 vib_temperature_c=data.get("temperature_c") if sensor_key == "vibration" else None,
-                env_temperature_c=data.get("temperature_c") if sensor_key == "temp_humidity" else None,
+                env_temperature_c=(
+                    data.get("temperature_c") if sensor_key == "temp_humidity" else None
+                ),
                 env_humidity_pct=data.get("humidity_pct"),
                 load_kg=data.get("load_kg"),
             )
             return reading
-        except (SensorUnavailableError, Exception) as e:
+        except (SensorUnavailableError, Exception):
             self._consecutive_errors[sensor_key] += 1
             return None
 
@@ -83,7 +89,9 @@ class PollSensorsUseCase:
         reading = self._poll_one("vibration", self._gateway.read_vibration, elevator_id)
         if reading:
             self._reading_repo.save(reading)
-            self._redis_queue.enqueue(asdict(reading))
+            payload = asdict(reading)
+            self._redis_queue.enqueue(payload)
+            self._publish_reading(payload)
             results["success"].append("ES-VS-01")
         else:
             results["failed"].append("vibration")
@@ -92,7 +100,9 @@ class PollSensorsUseCase:
         reading = self._poll_one("temp_humidity", self._gateway.read_temp_humidity, elevator_id)
         if reading:
             self._reading_repo.save(reading)
-            self._redis_queue.enqueue(asdict(reading))
+            payload = asdict(reading)
+            self._redis_queue.enqueue(payload)
+            self._publish_reading(payload)
             results["success"].append("ES35-SW")
         else:
             results["failed"].append("temp_humidity")
@@ -101,7 +111,9 @@ class PollSensorsUseCase:
         reading = self._poll_one("load", self._gateway.read_load, elevator_id)
         if reading:
             self._reading_repo.save(reading)
-            self._redis_queue.enqueue(asdict(reading))
+            payload = asdict(reading)
+            self._redis_queue.enqueue(payload)
+            self._publish_reading(payload)
             results["success"].append("RW-ST01D")
         else:
             results["failed"].append("load")
@@ -117,3 +129,18 @@ class PollSensorsUseCase:
             }
             for key, errors in self._consecutive_errors.items()
         }
+
+    def _publish_reading(self, payload: dict) -> None:
+        if self._mqtt_publisher is None:
+            return
+
+        try:
+            published = self._mqtt_publisher.publish_reading(payload)
+            if not published:
+                logger.warning(
+                    "MQTT reading publish returned false for %s", payload.get("sensor_id")
+                )
+        except Exception as exc:
+            logger.warning(
+                "MQTT reading publish failed for %s: %s", payload.get("sensor_id"), exc
+            )

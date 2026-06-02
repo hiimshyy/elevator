@@ -63,8 +63,18 @@ class _FakeRuntime:
         return self._results.pop(0)
 
 
+class _FakeMqttPublisher:
+    def __init__(self) -> None:
+        self.status_payloads: list[dict] = []
+
+    def publish_status(self, payload: dict) -> bool:
+        self.status_payloads.append(payload)
+        return True
+
+
 def test_processes_only_readings_newer_than_latest_inference() -> None:
     settings = Settings()
+    mqtt_publisher = _FakeMqttPublisher()
     latest = InferenceResult(
         elevator_id="elev-001",
         timestamp="2026-06-01T00:00:00+00:00",
@@ -104,16 +114,20 @@ def test_processes_only_readings_newer_than_latest_inference() -> None:
             ]
         ),
         settings=settings,
+        mqtt_publisher=mqtt_publisher,
     )
 
     summary = use_case.execute("elev-001")
 
     assert summary["processed_readings"] == 1
     assert summary["alerts_created"] == 1
+    assert len(mqtt_publisher.status_payloads) == 2
+    assert mqtt_publisher.status_payloads[-1]["alert_sent"] is True
 
 
 def test_creates_emergency_alert_for_overload_status() -> None:
     alert_repo = _FakeAlertRepo()
+    mqtt_publisher = _FakeMqttPublisher()
     use_case = ProcessElevatorReadingsUseCase(
         elevator_repo=_FakeElevatorRepo(),
         reading_repo=_FakeReadingRepo(
@@ -141,6 +155,7 @@ def test_creates_emergency_alert_for_overload_status() -> None:
             ]
         ),
         settings=Settings(),
+        mqtt_publisher=mqtt_publisher,
     )
 
     summary = use_case.execute("elev-001")
@@ -149,3 +164,5 @@ def test_creates_emergency_alert_for_overload_status() -> None:
     assert summary["alerts_created"] == 1
     assert alert_repo.saved[0].severity == "EMERGENCY"
     assert alert_repo.saved[0].alert_type == "OVERLOAD"
+    assert len(mqtt_publisher.status_payloads) == 2
+    assert mqtt_publisher.status_payloads[0]["status"] == "OVERLOAD"
