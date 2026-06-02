@@ -1,5 +1,7 @@
+import hashlib
 import json
 import logging
+import os
 import threading
 from typing import Any
 
@@ -23,9 +25,10 @@ class MqttPublisher:
         self._validate_config()
         self._connected = threading.Event()
         self._loop_started = False
+        client_id = self._build_client_id(self._config.client_id)
         self._client = mqtt.Client(
             callback_api_version=CallbackAPIVersion.VERSION2,
-            client_id=self._config.client_id,
+            client_id=client_id,
         )
         self._client.username_pw_set(self._config.username, self._config.password)
         self._client.on_connect = self._on_connect
@@ -38,6 +41,11 @@ class MqttPublisher:
             raise ValueError("MQTT username is required. Set ELEVATOR_MQTT__USERNAME.")
         if not self._config.password.strip():
             raise ValueError("MQTT password is required. Set ELEVATOR_MQTT__PASSWORD.")
+
+    def _build_client_id(self, base_client_id: str) -> str:
+        hostname = os.getenv("HOSTNAME") or os.getenv("COMPUTERNAME") or "local"
+        suffix = hashlib.sha1(hostname.encode("utf-8")).hexdigest()[:6]
+        return f"{base_client_id}-{suffix}"
 
     def _on_connect(
         self,
