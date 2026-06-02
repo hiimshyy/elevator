@@ -2,14 +2,18 @@
 import logging
 from dataclasses import asdict
 from datetime import UTC, datetime
+from typing import Protocol
 
 from elevator_pdm.domain.entities.sensor_reading import SensorReading
 from elevator_pdm.domain.exceptions import SensorUnavailableError
 from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.domain.interfaces.sensor_gateway import SensorGateway
-from elevator_pdm.infrastructure.messaging.redis_queue import RedisQueue
 
 logger = logging.getLogger(__name__)
+
+
+class ReadingQueue(Protocol):
+    def enqueue(self, reading: dict) -> None: ...
 
 
 class PollSensorsUseCase:
@@ -22,7 +26,7 @@ class PollSensorsUseCase:
         self,
         sensor_gateway: SensorGateway,
         reading_repo: ReadingRepository,
-        redis_queue: RedisQueue,
+        redis_queue: ReadingQueue,
         mqtt_publisher: object | None = None,
     ) -> None:
         self._gateway = sensor_gateway
