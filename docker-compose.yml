@@ -13,8 +13,12 @@ services:
     environment:
       ELEVATOR_DATABASE__URL: sqlite:////app/data/elevator.db
       ELEVATOR_MQTT__BROKER_URL: ${ELEVATOR_MQTT__BROKER_URL}
+      ELEVATOR_MQTT__PORT: ${ELEVATOR_MQTT__PORT:-1883}
       ELEVATOR_MQTT__USERNAME: ${ELEVATOR_MQTT__USERNAME}
       ELEVATOR_MQTT__PASSWORD: ${ELEVATOR_MQTT__PASSWORD}
+      ELEVATOR_MQTT__TOPIC_R: ${ELEVATOR_MQTT__TOPIC_R:-embody/r}
+      ELEVATOR_MQTT__TOPIC_W: ${ELEVATOR_MQTT__TOPIC_W:-embody/w}
+      ELEVATOR_MQTT__CLIENT_ID: ${ELEVATOR_MQTT__CLIENT_ID:-embody002}
     ports:
       - "8000:8000"
     volumes:
@@ -42,8 +46,12 @@ services:
     environment:
       ELEVATOR_DATABASE__URL: sqlite:////app/data/elevator.db
       ELEVATOR_MQTT__BROKER_URL: ${ELEVATOR_MQTT__BROKER_URL}
+      ELEVATOR_MQTT__PORT: ${ELEVATOR_MQTT__PORT:-1883}
       ELEVATOR_MQTT__USERNAME: ${ELEVATOR_MQTT__USERNAME}
       ELEVATOR_MQTT__PASSWORD: ${ELEVATOR_MQTT__PASSWORD}
+      ELEVATOR_MQTT__TOPIC_R: ${ELEVATOR_MQTT__TOPIC_R:-embody/r}
+      ELEVATOR_MQTT__TOPIC_W: ${ELEVATOR_MQTT__TOPIC_W:-embody/w}
+      ELEVATOR_MQTT__CLIENT_ID: ${ELEVATOR_MQTT__CLIENT_ID:-embody002}
     volumes:
       - ./data:/app/data
       - ./models:/app/models:ro
