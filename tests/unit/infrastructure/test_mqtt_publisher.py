@@ -64,8 +64,15 @@ def test_connect_calls_client_connect_and_loop_start(mock_client_class):
     mock_client_class.return_value = mock_client
 
     publisher = MqttPublisher(settings=_build_settings())
-    publisher.connect()
+    mock_client.connect.side_effect = lambda *args, **kwargs: publisher._on_connect(
+        mock_client,
+        None,
+        None,
+        0,
+    )
+    result = publisher.connect()
 
+    assert result is True
     mock_client.connect.assert_called_once_with("broker.example.com", 1883, keepalive=60)
     mock_client.loop_start.assert_called_once()
 
@@ -76,6 +83,7 @@ def test_disconnect_calls_loop_stop_and_disconnect(mock_client_class):
     mock_client_class.return_value = mock_client
 
     publisher = MqttPublisher(settings=_build_settings())
+    publisher._loop_started = True
     publisher.disconnect()
 
     mock_client.loop_stop.assert_called_once()
@@ -92,6 +100,7 @@ def test_publish_reading_uses_topic_w_and_returns_true_on_success(mock_client_cl
     mock_client.publish.return_value = message_info
 
     publisher = MqttPublisher(settings=_build_settings())
+    publisher._connected.set()
     payload = {"elevator_id": "elev-001", "load_kg": 350.5}
 
     result = publisher.publish_reading(payload)
@@ -115,6 +124,7 @@ def test_publish_status_uses_topic_r(mock_client_class):
     mock_client.publish.return_value = message_info
 
     publisher = MqttPublisher(settings=_build_settings())
+    publisher._connected.set()
     result = publisher.publish_status({"status": "ok"})
 
     assert result is True
@@ -131,6 +141,7 @@ def test_publish_returns_false_when_not_published(mock_client_class):
     mock_client.publish.return_value = message_info
 
     publisher = MqttPublisher(settings=_build_settings())
+    publisher._connected.set()
     result = publisher.publish_reading({"x": 1})
 
     assert result is False
@@ -143,9 +154,33 @@ def test_publish_returns_false_on_exception(mock_client_class):
     mock_client.publish.side_effect = RuntimeError("publish failed")
 
     publisher = MqttPublisher(settings=_build_settings())
+    publisher._connected.set()
     result = publisher.publish_reading({"x": 1})
 
     assert result is False
+
+
+@patch("elevator_pdm.infrastructure.messaging.mqtt_publisher.mqtt.Client")
+def test_publish_attempts_connect_when_not_connected(mock_client_class):
+    mock_client = MagicMock()
+    mock_client_class.return_value = mock_client
+
+    message_info = MagicMock()
+    message_info.is_published.return_value = True
+    mock_client.publish.return_value = message_info
+
+    publisher = MqttPublisher(settings=_build_settings())
+    mock_client.connect.side_effect = lambda *args, **kwargs: publisher._on_connect(
+        mock_client,
+        None,
+        None,
+        0,
+    )
+
+    result = publisher.publish_status({"status": "ok"})
+
+    assert result is True
+    mock_client.connect.assert_called_once_with("broker.example.com", 1883, keepalive=60)
 
 
 def test_init_raises_when_required_mqtt_fields_missing():

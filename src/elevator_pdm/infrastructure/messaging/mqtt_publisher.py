@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -20,6 +21,8 @@ class MqttPublisher:
         self._settings = settings or Settings()
         self._config = self._settings.mqtt
         self._validate_config()
+        self._connected = threading.Event()
+        self._loop_started = False
         self._client = mqtt.Client(
             callback_api_version=CallbackAPIVersion.VERSION2,
             client_id=self._config.client_id,
@@ -46,12 +49,14 @@ class MqttPublisher:
     ) -> None:
         # rc.value for Paho MQTT v2 is 0 on success
         if hasattr(rc, "value") and rc.value == 0 or rc == 0:
+            self._connected.set()
             logger.info(
                 "Connected to MQTT Broker at %s:%s",
                 self._config.broker_url,
                 self._config.port,
             )
         else:
+            self._connected.clear()
             logger.error("Failed to connect to MQTT Broker, return code %s", rc)
 
     def _on_disconnect(
@@ -62,19 +67,38 @@ class MqttPublisher:
         rc: Any,
         properties: Any = None,
     ) -> None:
+        self._connected.clear()
         logger.warning("Disconnected from MQTT Broker with return code %s", rc)
 
-    def connect(self) -> None:
+    def connect(self, timeout_s: float = 5.0) -> bool:
         """Connects to the MQTT broker and starts the background network loop."""
         try:
-            self._client.connect(self._config.broker_url, self._config.port, keepalive=60)
-            self._client.loop_start()
+            if not self._loop_started:
+                self._client.connect(self._config.broker_url, self._config.port, keepalive=60)
+                self._client.loop_start()
+                self._loop_started = True
+            elif not self._connected.is_set():
+                self._client.reconnect()
+
+            if not self._connected.wait(timeout=timeout_s):
+                logger.error(
+                    "Timed out waiting for MQTT connection to %s:%s",
+                    self._config.broker_url,
+                    self._config.port,
+                )
+                return False
+            return True
         except Exception as e:
             logger.error("Error connecting to MQTT Broker: %s", e)
+            self._connected.clear()
+            return False
 
     def disconnect(self) -> None:
         """Stops the network loop and disconnects from the broker."""
-        self._client.loop_stop()
+        if self._loop_started:
+            self._client.loop_stop()
+            self._loop_started = False
+        self._connected.clear()
         self._client.disconnect()
 
     def publish_reading(self, payload: dict[str, Any]) -> bool:
@@ -92,6 +116,10 @@ class MqttPublisher:
     def _publish(self, topic: str, payload: dict[str, Any]) -> bool:
         """Internal generic publish method."""
         try:
+            if not self._ensure_connected():
+                logger.error("MQTT publish skipped because client is not connected")
+                return False
+
             msg_str = json.dumps(payload)
             # paho-mqtt version 2.0+ publish() returns MQTTMessageInfo
             result = self._client.publish(topic, msg_str, qos=self._config.qos)
@@ -105,3 +133,8 @@ class MqttPublisher:
         except Exception as e:
             logger.error("Exception during MQTT publish: %s", e)
             return False
+
+    def _ensure_connected(self) -> bool:
+        if self._connected.is_set():
+            return True
+        return self.connect(timeout_s=5.0)
