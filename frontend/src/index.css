@@ -515,6 +515,10 @@ code {
   gap: 1rem;
 }
 
+.metric-banner--live {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .metric-banner > div {
   display: grid;
   gap: 0.3rem;
@@ -522,6 +526,19 @@ code {
   border: 1px solid rgba(16, 33, 38, 0.08);
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.72);
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-banner--live > div::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -35% auto;
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(18, 140, 145, 0.16) 0%, rgba(18, 140, 145, 0) 72%);
+  pointer-events: none;
 }
 
 .metric-banner strong {
@@ -560,6 +577,29 @@ code {
 .chart-card__svg {
   width: 100%;
   height: auto;
+}
+
+.chart-card__pulse {
+  opacity: 0.2;
+  transform-origin: center;
+  animation: live-pulse 1.6s ease-out infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    opacity: 0.28;
+    transform: scale(0.75);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
 }
 
 @media (max-width: 960px) {

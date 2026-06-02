@@ -5,9 +5,19 @@ interface MetricSparklineProps {
   unit: string;
 }
 
-function buildPolyline(points: number[], width: number, height: number, padding: number): string {
+interface ChartCoordinate {
+  x: number;
+  y: number;
+}
+
+function buildCoordinates(
+  points: number[],
+  width: number,
+  height: number,
+  padding: number
+): ChartCoordinate[] {
   if (points.length === 0) {
-    return "";
+    return [];
   }
 
   const min = Math.min(...points);
@@ -18,9 +28,12 @@ function buildPolyline(points: number[], width: number, height: number, padding:
     .map((point, index) => {
       const x = padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2);
       const y = height - padding - ((point - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
+      return { x, y };
+    });
+}
+
+function buildPolyline(coordinates: ChartCoordinate[]): string {
+  return coordinates.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
 export function MetricSparkline({
@@ -32,8 +45,10 @@ export function MetricSparkline({
   const width = 320;
   const height = 180;
   const padding = 16;
-  const polyline = buildPolyline(points, width, height, padding);
+  const coordinates = buildCoordinates(points, width, height, padding);
+  const polyline = buildPolyline(coordinates);
   const latest = points[points.length - 1];
+  const latestCoordinate = coordinates[coordinates.length - 1];
 
   return (
     <article className="chart-card">
@@ -55,14 +70,28 @@ export function MetricSparkline({
       >
         <rect x="0" y="0" width={width} height={height} rx="18" fill="rgba(10, 38, 44, 0.02)" />
         {polyline ? (
-          <polyline
-            fill="none"
-            stroke={color}
-            strokeWidth="3"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            points={polyline}
-          />
+          <>
+            <polyline
+              fill="none"
+              stroke={color}
+              strokeWidth="3"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              points={polyline}
+            />
+            {latestCoordinate ? (
+              <>
+                <circle
+                  className="chart-card__pulse"
+                  cx={latestCoordinate.x}
+                  cy={latestCoordinate.y}
+                  fill={color}
+                  r="12"
+                />
+                <circle cx={latestCoordinate.x} cy={latestCoordinate.y} fill={color} r="4.5" />
+              </>
+            ) : null}
+          </>
         ) : null}
       </svg>
     </article>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { MetricSparkline } from "../components/charts/MetricSparkline";
@@ -20,6 +20,7 @@ interface LivePoint {
   velocityRmsMms: number;
   loadKg: number;
   temperatureC: number;
+  source: "actual" | "synthetic";
 }
 
 interface LiveStreamMessage {
@@ -47,12 +48,13 @@ function normalizeReading(reading: SensorReading): LivePoint {
     accelRmsMg: reading.accel_rms_mg ?? 0,
     velocityRmsMms: reading.velocity_rms_mms ?? 0,
     loadKg: reading.load_kg ?? 0,
-    temperatureC: reading.vib_temperature_c ?? reading.env_temperature_c ?? 0
+    temperatureC: reading.vib_temperature_c ?? reading.env_temperature_c ?? 0,
+    source: "actual"
   };
 }
 
 function mergePoint(existing: LivePoint[], incoming: LivePoint): LivePoint[] {
-  const next = [...existing];
+  const next = existing.filter((point) => point.source === "actual");
   const index = next.findIndex((point) => point.timestamp === incoming.timestamp);
 
   if (index >= 0) {
@@ -63,6 +65,76 @@ function mergePoint(existing: LivePoint[], incoming: LivePoint): LivePoint[] {
 
   next.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
   return next.slice(-maxPoints);
+}
+
+function clampMetric(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function createSyntheticPoint(
+  latest: LivePoint,
+  previous: LivePoint | null,
+  elapsedMs: number,
+  sequence: number
+): LivePoint {
+  const trendWeight = 0.18;
+  const previousPoint = previous ?? latest;
+  const oscillation = elapsedMs / 1000 + sequence;
+  const jitter = Math.sin(oscillation * 1.4);
+  const secondaryJitter = Math.cos(oscillation * 1.1);
+
+  const trend = {
+    accelRmsMg: (latest.accelRmsMg - previousPoint.accelRmsMg) * trendWeight,
+    velocityRmsMms: (latest.velocityRmsMms - previousPoint.velocityRmsMms) * trendWeight,
+    loadKg: (latest.loadKg - previousPoint.loadKg) * trendWeight,
+    temperatureC: (latest.temperatureC - previousPoint.temperatureC) * trendWeight
+  };
+
+  const amplitude = {
+    accelRmsMg: Math.max(0.8, latest.accelRmsMg * 0.018),
+    velocityRmsMms: Math.max(0.05, latest.velocityRmsMms * 0.03),
+    loadKg: Math.max(1.2, latest.loadKg * 0.006),
+    temperatureC: Math.max(0.08, latest.temperatureC * 0.01)
+  };
+
+  return {
+    timestamp: new Date(Date.now() + sequence * 1000).toISOString(),
+    accelRmsMg: clampMetric(latest.accelRmsMg + trend.accelRmsMg + jitter * amplitude.accelRmsMg),
+    velocityRmsMms: clampMetric(
+      latest.velocityRmsMms + trend.velocityRmsMms + secondaryJitter * amplitude.velocityRmsMms
+    ),
+    loadKg: clampMetric(latest.loadKg + trend.loadKg + jitter * amplitude.loadKg * 0.7),
+    temperatureC: clampMetric(
+      latest.temperatureC + trend.temperatureC + secondaryJitter * amplitude.temperatureC
+    ),
+    source: "synthetic"
+  };
+}
+
+function buildDisplayPoints(actualPoints: LivePoint[], nowMs: number): LivePoint[] {
+  if (actualPoints.length === 0) {
+    return [];
+  }
+
+  const latest = actualPoints[actualPoints.length - 1];
+  const previous = actualPoints.length > 1 ? actualPoints[actualPoints.length - 2] : null;
+  const latestMs = new Date(latest.timestamp).getTime();
+  if (Number.isNaN(latestMs)) {
+    return actualPoints;
+  }
+
+  const elapsedMs = Math.max(0, nowMs - latestMs);
+  const syntheticCount = Math.min(4, Math.floor(elapsedMs / 1000));
+
+  if (syntheticCount === 0) {
+    return actualPoints;
+  }
+
+  const syntheticPoints = Array.from({ length: syntheticCount }, (_, index) =>
+    createSyntheticPoint(latest, previous, elapsedMs, index + 1)
+  );
+
+  return [...actualPoints, ...syntheticPoints].slice(-maxPoints);
 }
 
 function formatTimestamp(value: string): string {
@@ -79,6 +151,7 @@ export function LiveMonitorPage(): JSX.Element {
   const [connectionState, setConnectionState] = useState("Connecting");
   const [error, setError] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const selectedElevator = searchParams.get("elevator") ?? "elev-001";
   const readingsUrl = `${apiBaseUrl}/elevators/${selectedElevator}/readings?limit=${maxPoints}`;
@@ -137,6 +210,16 @@ export function LiveMonitorPage(): JSX.Element {
   }, [selectedElevator]);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      startTransition(() => {
+        setNowMs(Date.now());
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
     const socket = new WebSocket(socketUrl);
     setConnectionState("Connecting");
 
@@ -159,9 +242,11 @@ export function LiveMonitorPage(): JSX.Element {
           accelRmsMg: readings.accel_rms_mg ?? 0,
           velocityRmsMms: readings.velocity_rms_mms ?? 0,
           loadKg: readings.load_kg ?? 0,
-          temperatureC: readings.vib_temperature_c ?? readings.env_temperature_c ?? 0
+          temperatureC: readings.vib_temperature_c ?? readings.env_temperature_c ?? 0,
+          source: "actual"
         })
       );
+      setNowMs(Date.now());
     };
 
     socket.onerror = () => {
@@ -177,17 +262,23 @@ export function LiveMonitorPage(): JSX.Element {
     };
   }, [socketUrl]);
 
-  const latestPoint = points[points.length - 1] ?? null;
-  const hasData = points.length > 0;
+  const displayPoints = useMemo(() => buildDisplayPoints(points, nowMs), [nowMs, points]);
+  const latestActualPoint = points[points.length - 1] ?? null;
+  const latestDisplayPoint = displayPoints[displayPoints.length - 1] ?? null;
+  const hasData = displayPoints.length > 0;
+  const secondsSinceActualSample = latestActualPoint
+    ? Math.max(0, Math.floor((nowMs - new Date(latestActualPoint.timestamp).getTime()) / 1000))
+    : null;
+  const streamPhase = secondsSinceActualSample === null ? "Awaiting first packet" : secondsSinceActualSample < 5 ? "Collecting" : "Holding last packet";
 
   const chartSeries = useMemo(
     () => ({
-      accel: points.map((point) => point.accelRmsMg),
-      velocity: points.map((point) => point.velocityRmsMms),
-      load: points.map((point) => point.loadKg),
-      temperature: points.map((point) => point.temperatureC)
+      accel: displayPoints.map((point) => point.accelRmsMg),
+      velocity: displayPoints.map((point) => point.velocityRmsMms),
+      load: displayPoints.map((point) => point.loadKg),
+      temperature: displayPoints.map((point) => point.temperatureC)
     }),
-    [points]
+    [displayPoints]
   );
 
   return (
@@ -230,15 +321,29 @@ export function LiveMonitorPage(): JSX.Element {
         </div>
       ) : null}
 
-      {latestPoint ? (
-        <div className="metric-banner">
+      {latestActualPoint ? (
+        <div className="metric-banner metric-banner--live">
           <div>
-            <span className="fleet-card__eyebrow">Latest sample</span>
-            <strong>{formatTimestamp(latestPoint.timestamp)}</strong>
+            <span className="fleet-card__eyebrow">Latest packet</span>
+            <strong>{formatTimestamp(latestActualPoint.timestamp)}</strong>
           </div>
           <div>
-            <span className="fleet-card__eyebrow">Samples</span>
-            <strong>{points.length}</strong>
+            <span className="fleet-card__eyebrow">Realtime phase</span>
+            <strong>{streamPhase}</strong>
+          </div>
+          <div>
+            <span className="fleet-card__eyebrow">Packet age</span>
+            <strong>{secondsSinceActualSample ?? 0}s ago</strong>
+          </div>
+          <div>
+            <span className="fleet-card__eyebrow">Rendered samples</span>
+            <strong>{displayPoints.length}</strong>
+          </div>
+          <div>
+            <span className="fleet-card__eyebrow">Signal source</span>
+            <strong>
+              {latestDisplayPoint?.source === "synthetic" ? "Interpolated live trace" : "Live packet"}
+            </strong>
           </div>
           <div>
             <span className="fleet-card__eyebrow">Selected elevator</span>
