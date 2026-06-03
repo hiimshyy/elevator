@@ -9,7 +9,6 @@ from elevator_pdm.application.use_cases.process_elevator_readings import (
     ProcessElevatorReadingsUseCase,
 )
 from elevator_pdm.infrastructure.config.settings import Settings
-from elevator_pdm.infrastructure.messaging.mqtt_publisher import MqttPublisher
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
 from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
 from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
@@ -55,8 +54,6 @@ def main() -> None:
     interval_s = args.interval_s or settings.workers.alert_pipeline_interval_s
     engine, session_factory = create_engine_and_session(settings.database.url)
     ensure_database_schema(engine)
-    mqtt_publisher = MqttPublisher(settings=settings)
-    mqtt_publisher.connect()
 
     def list_elevator_ids() -> list[str]:
         session = session_factory()
@@ -82,7 +79,6 @@ def main() -> None:
                 alert_repo=alert_repo,
                 model_runtime=runtime,
                 settings=settings,
-                mqtt_publisher=mqtt_publisher,
             )
             return use_case.execute(elevator_id=elevator_id, limit=reading_limit)
         finally:
@@ -93,20 +89,17 @@ def main() -> None:
         process_elevator=process_elevator,
     )
 
-    try:
-        if args.once or args.max_cycles == 1:
-            summaries = worker.run_once(elevator_id=args.elevator_id, limit=limit)
-            print(json.dumps(summaries, indent=2))
-            return
+    if args.once or args.max_cycles == 1:
+        summaries = worker.run_once(elevator_id=args.elevator_id, limit=limit)
+        print(json.dumps(summaries, indent=2))
+        return
 
-        worker.run_forever(
-            elevator_id=args.elevator_id,
-            limit=limit,
-            interval_s=interval_s,
-            max_cycles=args.max_cycles,
-        )
-    finally:
-        mqtt_publisher.disconnect()
+    worker.run_forever(
+        elevator_id=args.elevator_id,
+        limit=limit,
+        interval_s=interval_s,
+        max_cycles=args.max_cycles,
+    )
 
 
 if __name__ == "__main__":

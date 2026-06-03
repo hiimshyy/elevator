@@ -17,6 +17,7 @@ def mocks():
     queue = MagicMock()
     mqtt_publisher = MagicMock()
     mqtt_publisher.publish_reading.return_value = True
+    mqtt_publisher.publish_status.return_value = True
     use_case = PollSensorsUseCase(gateway, repo, queue, mqtt_publisher=mqtt_publisher)
     return gateway, repo, queue, mqtt_publisher, use_case
 
@@ -98,6 +99,8 @@ def test_publishes_readings_to_mqtt(mocks):
     use_case.execute("test-elev-001")
 
     assert mqtt_publisher.publish_reading.call_count == 3
+    mqtt_publisher.publish_status.assert_called_once()
+    assert mqtt_publisher.publish_status.call_args.args[0]["event"] == "sensor_poll_summary"
 
 
 def test_single_sensor_failure_does_not_block_others(mocks):

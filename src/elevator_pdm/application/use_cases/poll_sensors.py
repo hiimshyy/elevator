@@ -123,6 +123,16 @@ class PollSensorsUseCase:
         else:
             results["failed"].append("load")
 
+        self._publish_status(
+            {
+                "event": "sensor_poll_summary",
+                "elevator_id": elevator_id,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "success": list(results["success"]),
+                "failed": list(results["failed"]),
+                "backoff": self.get_backoff_status(),
+            }
+        )
         return results
 
     def get_backoff_status(self) -> dict:
@@ -148,4 +158,19 @@ class PollSensorsUseCase:
         except Exception as exc:
             logger.warning(
                 "MQTT reading publish failed for %s: %s", payload.get("sensor_id"), exc
+            )
+
+    def _publish_status(self, payload: dict) -> None:
+        if self._mqtt_publisher is None:
+            return
+
+        try:
+            published = self._mqtt_publisher.publish_status(payload)
+            if not published:
+                logger.warning(
+                    "MQTT status publish returned false for %s", payload.get("elevator_id")
+                )
+        except Exception as exc:
+            logger.warning(
+                "MQTT status publish failed for %s: %s", payload.get("elevator_id"), exc
             )
