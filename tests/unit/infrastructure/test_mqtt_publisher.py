@@ -44,18 +44,16 @@ def _build_settings() -> Settings:
     return settings
 
 
-@patch("elevator_pdm.infrastructure.messaging.mqtt_publisher.os.getenv")
 @patch("elevator_pdm.infrastructure.messaging.mqtt_publisher.mqtt.Client")
-def test_init_sets_credentials_and_callbacks(mock_client_class, mock_getenv):
+def test_init_sets_credentials_and_callbacks(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
-    mock_getenv.side_effect = lambda key: "sensor-poller-1" if key == "HOSTNAME" else None
 
     settings = _build_settings()
     publisher = MqttPublisher(settings=settings)
 
     assert publisher is not None
-    assert mock_client_class.call_args.kwargs["client_id"].startswith("edge-001-")
+    assert mock_client_class.call_args.kwargs["client_id"] == "edge-001"
     mock_client.username_pw_set.assert_called_once_with("user1", "pass1")
     assert mock_client.on_connect is not None
     assert mock_client.on_disconnect is not None
