@@ -1,5 +1,6 @@
 """Process persisted sensor readings into inference results and alerts."""
 import logging
+from typing import Any
 
 from elevator_pdm.application.services.feature_engineer import FeatureEngineer
 from elevator_pdm.application.use_cases.dispatch_alert import DispatchAlert
@@ -10,6 +11,7 @@ from elevator_pdm.domain.interfaces.alert_repository import AlertRepository
 from elevator_pdm.domain.interfaces.elevator_repository import ElevatorRepository
 from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
 from elevator_pdm.domain.interfaces.model_runtime import ModelRuntime
+from elevator_pdm.domain.interfaces.mqtt_publisher import MqttPublisher
 from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.infrastructure.config.settings import Settings
 
@@ -28,7 +30,7 @@ class ProcessElevatorReadingsUseCase:
         model_runtime: ModelRuntime,
         settings: Settings | None = None,
         notifier: object | None = None,
-        mqtt_publisher: object | None = None,
+        mqtt_publisher: MqttPublisher | None = None,
     ) -> None:
         self._elevator_repo = elevator_repo
         self._reading_repo = reading_repo
@@ -200,7 +202,7 @@ class ProcessElevatorReadingsUseCase:
         if self._mqtt_publisher is None:
             return
 
-        payload = {
+        payload: dict[str, Any] = {
             "event": "inference_result",
             "elevator_id": reading.elevator_id,
             "sensor_id": reading.sensor_id,

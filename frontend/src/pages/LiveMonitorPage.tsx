@@ -5,11 +5,10 @@ import { MetricSparkline } from "../components/charts/MetricSparkline";
 import {
   ElevatorSummary,
   SensorReading,
-  apiBaseUrl,
   listElevators,
   listReadings,
-  wsBaseUrl
 } from "../lib/api";
+import { useLocalConfig } from "../lib/localConfig";
 import { createSensorStreamUrl } from "../lib/ws";
 
 const maxPoints = 60;
@@ -145,6 +144,7 @@ function formatTimestamp(value: string): string {
 }
 
 export function LiveMonitorPage(): JSX.Element {
+  const { apiBaseUrl, apiKey, wsBaseUrl } = useLocalConfig();
   const [searchParams, setSearchParams] = useSearchParams();
   const [elevators, setElevators] = useState<ElevatorSummary[]>([]);
   const [points, setPoints] = useState<LivePoint[]>([]);
@@ -178,7 +178,7 @@ export function LiveMonitorPage(): JSX.Element {
     void loadElevators();
 
     return () => controller.abort();
-  }, [searchParams, setSearchParams]);
+  }, [apiBaseUrl, apiKey, searchParams, setSearchParams]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -207,7 +207,7 @@ export function LiveMonitorPage(): JSX.Element {
     void loadHistory();
 
     return () => controller.abort();
-  }, [selectedElevator]);
+  }, [apiBaseUrl, apiKey, selectedElevator]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {

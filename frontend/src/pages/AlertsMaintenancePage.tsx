@@ -5,13 +5,13 @@ import {
   ElevatorSummary,
   MaintenanceRecord,
   acknowledgeAlert,
-  apiBaseUrl,
   createMaintenance,
   listAlerts,
   listElevators,
   listMaintenance,
   updateMaintenance
 } from "../lib/api";
+import { useLocalConfig } from "../lib/localConfig";
 
 const urgencyOptions = ["routine", "soon", "urgent", "immediate"] as const;
 const maintenanceStatusOptions = ["pending", "scheduled", "completed", "cancelled"] as const;
@@ -69,6 +69,7 @@ function getDefaultRecommendedDate(): string {
 }
 
 export function AlertsMaintenancePage(): JSX.Element {
+  const { apiBaseUrl, apiKey } = useLocalConfig();
   const [elevators, setElevators] = useState<ElevatorSummary[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
@@ -156,14 +157,14 @@ export function AlertsMaintenancePage(): JSX.Element {
     void loadElevatorOptions();
 
     return () => controller.abort();
-  }, []);
+  }, [apiBaseUrl, apiKey]);
 
   useEffect(() => {
     const controller = new AbortController();
     setIsLoading(true);
     void loadData(controller.signal);
     return () => controller.abort();
-  }, [loadData]);
+  }, [apiBaseUrl, apiKey, loadData]);
 
   const openAlerts = useMemo(
     () => alerts.filter((alert) => alert.acknowledged === 0).length,

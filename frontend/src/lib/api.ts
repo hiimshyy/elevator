@@ -1,14 +1,7 @@
-const defaultApiBaseUrl = "http://localhost:8000/api";
-const defaultApiKey = "elevator-secret-key-123";
-
-export const apiBaseUrl = (
-  import.meta.env.VITE_API_BASE_URL as string | undefined
-) ?? defaultApiBaseUrl;
-export const apiKey = (import.meta.env.VITE_API_KEY as string | undefined) ?? defaultApiKey;
-
-export const wsBaseUrl = apiBaseUrl.replace(/^http/, "ws").replace(/\/api$/, "");
+import { getLocalConfig } from "./localConfig";
 
 export function apiUrl(path: string): string {
+  const { apiBaseUrl } = getLocalConfig();
   return `${apiBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
@@ -92,6 +85,8 @@ function toQueryString(params: Record<string, string | number | boolean | undefi
 }
 
 async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { apiKey } = getLocalConfig();
+
   const response = await fetch(apiUrl(path), {
     method: options.method ?? "GET",
     headers: {

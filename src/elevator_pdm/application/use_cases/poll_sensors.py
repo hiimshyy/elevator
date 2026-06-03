@@ -6,6 +6,7 @@ from typing import Protocol
 
 from elevator_pdm.domain.entities.sensor_reading import SensorReading
 from elevator_pdm.domain.exceptions import SensorUnavailableError
+from elevator_pdm.domain.interfaces.mqtt_publisher import MqttPublisher
 from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.domain.interfaces.sensor_gateway import SensorGateway
 
@@ -27,7 +28,7 @@ class PollSensorsUseCase:
         sensor_gateway: SensorGateway,
         reading_repo: ReadingRepository,
         redis_queue: ReadingQueue,
-        mqtt_publisher: object | None = None,
+        mqtt_publisher: MqttPublisher | None = None,
     ) -> None:
         self._gateway = sensor_gateway
         self._reading_repo = reading_repo

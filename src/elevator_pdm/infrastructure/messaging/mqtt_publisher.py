@@ -82,7 +82,10 @@ class MqttPublisher:
         """Connects to the MQTT broker and starts the background network loop."""
         try:
             if not self._loop_started:
-                self._client.connect(self._config.broker_url, self._config.port, keepalive=60)
+                host = self._config.broker_url.strip()
+                if "://" in host:
+                    host = host.split("://")[-1]
+                self._client.connect(host, self._config.port, keepalive=60)
                 self._client.loop_start()
                 self._loop_started = True
             elif not self._connected.is_set():

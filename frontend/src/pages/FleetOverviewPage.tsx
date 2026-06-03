@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { ElevatorSummary, apiBaseUrl, listElevators } from "../lib/api";
+import { ElevatorSummary, listElevators } from "../lib/api";
+import { useLocalConfig } from "../lib/localConfig";
 
 const refreshIntervalMs = 10_000;
 
@@ -37,6 +38,7 @@ function formatTimestamp(value: string): string {
 }
 
 export function FleetOverviewPage(): JSX.Element {
+  const { apiBaseUrl, apiKey } = useLocalConfig();
   const [elevators, setElevators] = useState<ElevatorSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function FleetOverviewPage(): JSX.Element {
       controller.abort();
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [apiBaseUrl, apiKey]);
 
   const summaryLabel = useMemo(() => {
     if (isLoading) {
