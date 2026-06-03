@@ -16,6 +16,30 @@ Supporting folders:
 - `frontend/` for React + TypeScript (Vite) UI.
 - `deploy/` for container/runtime artifacts (for example, `Dockerfile.app`).
 
+## Target Real-Sensor Flow
+The intended product-level runtime flow is:
+
+`RS-485/Modbus sensors -> ModbusGateway -> PollSensorsUseCase -> SQLite + RedisQueue + MQTT -> ProcessElevatorReadingsUseCase -> inference/alerts in SQLite -> FastAPI/WebSocket -> React frontend`
+
+Details:
+- `ModbusGateway` is the real hardware adapter for the three field sensors on the RS-485 bus:
+  - `ES-VS-01` vibration
+  - `ES35-SW` temperature/humidity
+  - `RW-ST01D` load
+- `PollSensorsUseCase` is responsible for one poll cycle:
+  - read each sensor through `SensorGateway`
+  - normalize into `SensorReading`
+  - persist readings to SQLite
+  - enqueue serialized readings to `RedisQueue`
+  - publish raw readings to MQTT topic `embody/w`
+  - publish poll-cycle status summaries to MQTT topic `embody/r`
+- `ProcessElevatorReadingsUseCase` consumes persisted readings, performs feature/inference work, stores inference results, and creates alerts when thresholds or model outputs require it.
+- The API and WebSocket layer are DB-driven. The React frontend does not consume MQTT directly; it reads REST history and live WebSocket packets from FastAPI.
+
+Current runtime note:
+- The checked-in Docker runtime still uses `MockGateway` and a `_NoopQueue` in `scripts/poll_sensor_pipeline.py`.
+- That means the target flow above describes the intended production path, while the current local/container default remains mock-data-first.
+
 ## Build, Test, and Development Commands
 - `python -m venv .venv` then `.venv\Scripts\activate` (Windows): create/activate env.
 - `pip install -e ".[dev]"`: install app + dev tools.

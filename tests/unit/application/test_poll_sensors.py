@@ -13,6 +13,13 @@ from elevator_pdm.domain.exceptions import SensorUnavailableError
 def mocks():
     """Create mock gateway, repo, and queue."""
     gateway = MagicMock()
+    gateway.read_controller.return_value = {
+        "sensor_id": "CTRL-485-01",
+        "controller_register_1047": 100,
+        "controller_register_0x2121": 200,
+        "controller_register_0x2122": 201,
+        "timestamp": "2025-01-01T00:00:00+00:00",
+    }
     repo = MagicMock()
     queue = MagicMock()
     mqtt_publisher = MagicMock()
@@ -216,6 +223,9 @@ def test_builds_correct_sensor_reading_entity(mocks):
     assert isinstance(vib_reading, SensorReading)
     assert vib_reading.sensor_id == "ES-VS-01"
     assert vib_reading.accel_rms_mg == 42.5
+    assert vib_reading.controller_register_1047 == 100
+    assert vib_reading.controller_register_0x2121 == 200
+    assert vib_reading.controller_register_0x2122 == 201
 
 
 def test_get_backoff_status(mocks):
@@ -229,3 +239,25 @@ def test_get_backoff_status(mocks):
     assert "vibration" in status
     assert status["vibration"]["consecutive_errors"] == 1
     assert status["vibration"]["current_backoff_s"] == 1.0
+
+
+def test_controller_failure_does_not_block_sensor_persistence(mocks):
+    gateway, repo, queue, mqtt_publisher, use_case = mocks
+
+    gateway.read_controller.side_effect = SensorUnavailableError("Controller unavailable")
+    gateway.read_vibration.return_value = {
+        "sensor_id": "ES-VS-01", "accel_rms_mg": 42.5, "timestamp": "2025-01-01T00:00:00+00:00"
+    }
+    gateway.read_temp_humidity.return_value = {
+        "sensor_id": "ES35-SW", "temperature_c": 25.0, "timestamp": "2025-01-01T00:00:00+00:00"
+    }
+    gateway.read_load.return_value = {
+        "sensor_id": "RW-ST01D", "load_kg": 450.0, "timestamp": "2025-01-01T00:00:00+00:00"
+    }
+
+    result = use_case.execute("test-elev-001")
+
+    assert result["controller_available"] is False
+    assert repo.save.call_count == 3
+    status_payload = mqtt_publisher.publish_status.call_args.args[0]
+    assert status_payload["controller"] is None

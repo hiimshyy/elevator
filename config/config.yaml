@@ -1,9 +1,13 @@
 serial:
   port: /dev/ttyUSB0
-  baudrate: 9600
+  baudrate: 19200
+  bytesize: 8
+  parity: E
+  stopbits: 1
   timeout_s: 1.0
 
 sensors:
+  source: mock
   vibration:
     slave_id: 1
     poll_interval_s: 5
@@ -16,6 +20,13 @@ sensors:
     slave_id: 3
     poll_interval_s: 1
     model: RW-ST01D
+
+controller:
+  slave_id: 1
+  register_1047: 1047
+  register_0x2121: 8481
+  register_0x2122: 8482
+  sensor_id: CTRL-485-01
 
 elevator:
   id: elev-001

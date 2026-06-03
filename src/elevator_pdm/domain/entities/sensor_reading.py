@@ -22,5 +22,10 @@ class SensorReading:
 
     # RW-ST01D load field
     load_kg: float | None = None
+
+    # Elevator controller holding registers
+    controller_register_1047: int | None = None
+    controller_register_0x2121: int | None = None
+    controller_register_0x2122: int | None = None
     id: int | None = None
     synced: int = 0

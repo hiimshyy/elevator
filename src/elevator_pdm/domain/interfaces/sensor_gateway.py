@@ -1,6 +1,6 @@
 """Sensor gateway interface (port)."""
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
 
 
 class SensorGateway(ABC):
@@ -12,7 +12,7 @@ class SensorGateway(ABC):
     """
 
     @abstractmethod
-    def read_vibration(self) -> Dict[str, Any]:
+    def read_vibration(self) -> dict[str, Any]:
         """Read ES-VS-01 vibration sensor.
 
         Returns:
@@ -22,7 +22,7 @@ class SensorGateway(ABC):
         ...
 
     @abstractmethod
-    def read_temp_humidity(self) -> Dict[str, Any]:
+    def read_temp_humidity(self) -> dict[str, Any]:
         """Read ES35-SW temperature and humidity sensor.
 
         Returns:
@@ -31,10 +31,20 @@ class SensorGateway(ABC):
         ...
 
     @abstractmethod
-    def read_load(self) -> Dict[str, Any]:
+    def read_load(self) -> dict[str, Any]:
         """Read RW-ST01D load cell via converter.
 
         Returns:
             Dict with keys: sensor_id, load_kg, timestamp
+        """
+        ...
+
+    @abstractmethod
+    def read_controller(self) -> dict[str, Any]:
+        """Read additional elevator controller holding registers.
+
+        Returns:
+            Dict with keys: sensor_id, controller_register_1047,
+            controller_register_0x2121, controller_register_0x2122, timestamp
         """
         ...

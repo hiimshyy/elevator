@@ -26,6 +26,9 @@ class SQLiteReadingRepo(ReadingRepository):
             env_temperature_c=reading.env_temperature_c,
             env_humidity_pct=reading.env_humidity_pct,
             load_kg=reading.load_kg,
+            controller_register_1047=reading.controller_register_1047,
+            controller_register_0x2121=reading.controller_register_0x2121,
+            controller_register_0x2122=reading.controller_register_0x2122,
         )
 
     def _to_domain(self, orm_reading: ORMSensorReading) -> SensorReading:
@@ -42,6 +45,9 @@ class SQLiteReadingRepo(ReadingRepository):
             env_temperature_c=orm_reading.env_temperature_c,
             env_humidity_pct=orm_reading.env_humidity_pct,
             load_kg=orm_reading.load_kg,
+            controller_register_1047=orm_reading.controller_register_1047,
+            controller_register_0x2121=orm_reading.controller_register_0x2121,
+            controller_register_0x2122=orm_reading.controller_register_0x2122,
             synced=orm_reading.synced,
         )
 

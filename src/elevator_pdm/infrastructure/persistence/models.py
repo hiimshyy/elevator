@@ -1,11 +1,9 @@
 """SQLAlchemy ORM models for all 5 tables."""
-from sqlalchemy import (
-    Column, String, Float, Integer, Text, Boolean, Index,
-    create_engine, ForeignKey, CheckConstraint
-)
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker, Session
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import CheckConstraint, Column, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
@@ -20,7 +18,7 @@ class Elevator(Base):
     install_date = Column(String, nullable=False)
     last_maintenance = Column(String, nullable=True)
     status = Column(String, default="active")
-    created_at = Column(String, default=lambda: datetime.now(timezone.utc).isoformat())
+    created_at = Column(String, default=lambda: datetime.now(UTC).isoformat())
 
     readings = relationship("SensorReading", back_populates="elevator")
     inference_results = relationship("InferenceResult", back_populates="elevator")
@@ -28,7 +26,10 @@ class Elevator(Base):
     maintenance = relationship("MaintenanceSchedule", back_populates="elevator")
 
     __table_args__ = (
-        CheckConstraint("status IN ('active', 'decommissioned', 'maintenance')", name="check_status"),
+        CheckConstraint(
+            "status IN ('active', 'decommissioned', 'maintenance')",
+            name="check_status",
+        ),
     )
 
 
@@ -46,6 +47,9 @@ class SensorReading(Base):
     env_temperature_c = Column(Float, nullable=True)
     env_humidity_pct = Column(Float, nullable=True)
     load_kg = Column(Float, nullable=True)
+    controller_register_1047 = Column(Integer, nullable=True)
+    controller_register_0x2121 = Column(Integer, nullable=True)
+    controller_register_0x2122 = Column(Integer, nullable=True)
     synced = Column(Integer, default=0)
 
     elevator = relationship("Elevator", back_populates="readings")
@@ -73,7 +77,10 @@ class InferenceResult(Base):
 
     __table_args__ = (
         Index("idx_inference_elevator_time", "elevator_id", "timestamp"),
-        CheckConstraint("status IN ('NORMAL', 'WARNING', 'CRITICAL', 'OVERLOAD')", name="check_status"),
+        CheckConstraint(
+            "status IN ('NORMAL', 'WARNING', 'CRITICAL', 'OVERLOAD')",
+            name="check_status",
+        ),
     )
 
 
@@ -95,7 +102,10 @@ class Alert(Base):
     elevator = relationship("Elevator", back_populates="alerts")
 
     __table_args__ = (
-        CheckConstraint("severity IN ('WARNING', 'CRITICAL', 'EMERGENCY')", name="check_severity"),
+        CheckConstraint(
+            "severity IN ('WARNING', 'CRITICAL', 'EMERGENCY')",
+            name="check_severity",
+        ),
         CheckConstraint("channel IN ('slack', 'email', 'sms')", name="check_channel"),
     )
 
@@ -117,6 +127,12 @@ class MaintenanceSchedule(Base):
     elevator = relationship("Elevator", back_populates="maintenance")
 
     __table_args__ = (
-        CheckConstraint("urgency IN ('routine', 'soon', 'urgent', 'immediate')", name="check_urgency"),
-        CheckConstraint("status IN ('pending', 'scheduled', 'completed', 'cancelled')", name="check_status"),
+        CheckConstraint(
+            "urgency IN ('routine', 'soon', 'urgent', 'immediate')",
+            name="check_urgency",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'scheduled', 'completed', 'cancelled')",
+            name="check_status",
+        ),
     )

@@ -25,6 +25,9 @@ class _FakeReading:
         self.env_temperature_c = 30.0
         self.env_humidity_pct = 60.0
         self.load_kg = 120.0
+        self.controller_register_1047 = 100
+        self.controller_register_0x2121 = 200
+        self.controller_register_0x2122 = 201
         self.synced = 0
 
 
@@ -70,6 +73,9 @@ def test_get_readings_passes_from_ts_and_to_ts_and_returns_payload():
     assert repo.called_with["to_ts"] == to_time.isoformat()
     assert repo.called_with["sensor_id"] == "ES-VS-01"
     assert repo.called_with["limit"] == 60
+    assert result[0].controller_register_1047 == 100
+    assert result[0].controller_register_0x2121 == 200
+    assert result[0].controller_register_0x2122 == 201
 
 
 def test_get_elevator_returns_404_when_elevator_missing():

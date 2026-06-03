@@ -25,6 +25,9 @@ class SensorReadingResponse(BaseModel):
     env_temperature_c: float | None = None
     env_humidity_pct: float | None = None
     load_kg: float | None = None
+    controller_register_1047: int | None = None
+    controller_register_0x2121: int | None = None
+    controller_register_0x2122: int | None = None
     synced: int = 0
 
 

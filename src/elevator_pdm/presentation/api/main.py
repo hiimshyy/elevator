@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from elevator_pdm.infrastructure.persistence.database import init_db
 from elevator_pdm.presentation.api.auth import verify_api_key
 from elevator_pdm.presentation.api.dependencies import get_db_engine
 from elevator_pdm.presentation.api.routers import (
@@ -31,9 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     engine = get_db_engine()
-    # Import models to register them with Base
-    from elevator_pdm.infrastructure.persistence import models  # noqa: F401
-    models.Base.metadata.create_all(bind=engine)
+    init_db(engine)
     yield
     # Shutdown (nothing to clean up for SQLite)
 

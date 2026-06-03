@@ -43,6 +43,9 @@ def test_save_persists_reading_and_auto_increments_id(repo):
         sensor_id="ES-VS-01",
         timestamp="2025-01-01T00:00:00+00:00",
         accel_rms_mg=42.5,
+        controller_register_1047=100,
+        controller_register_0x2121=200,
+        controller_register_0x2122=201,
     )
     repo.save(reading)
 
@@ -50,6 +53,9 @@ def test_save_persists_reading_and_auto_increments_id(repo):
     assert len(orm_readings) == 1
     assert orm_readings[0].id == 1
     assert orm_readings[0].accel_rms_mg == 42.5
+    assert orm_readings[0].controller_register_1047 == 100
+    assert orm_readings[0].controller_register_0x2121 == 200
+    assert orm_readings[0].controller_register_0x2122 == 201
 
 
 def test_find_by_elevator_filters_by_time_range(repo):
@@ -125,6 +131,27 @@ def test_find_latest_returns_most_recent(repo):
     assert latest.timestamp == "2025-01-01T01:00:00+00:00"
     assert latest.id is not None
     assert latest.synced == 0
+
+
+def test_find_latest_returns_controller_registers(repo):
+    repo, session = repo
+
+    reading = SensorReading(
+        elevator_id="test-elev-001",
+        sensor_id="RW-ST01D",
+        timestamp="2025-01-01T01:00:00+00:00",
+        load_kg=450.0,
+        controller_register_1047=100,
+        controller_register_0x2121=200,
+        controller_register_0x2122=201,
+    )
+    repo.save(reading)
+
+    latest = repo.find_latest("test-elev-001")
+    assert latest is not None
+    assert latest.controller_register_1047 == 100
+    assert latest.controller_register_0x2121 == 200
+    assert latest.controller_register_0x2122 == 201
 
 
 def test_find_latest_returns_none_for_unknown_elevator(repo):

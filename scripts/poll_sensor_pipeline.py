@@ -6,12 +6,14 @@ import time
 
 from elevator_pdm.application.use_cases.poll_sensors import PollSensorsUseCase
 from elevator_pdm.domain.entities.elevator import Elevator
+from elevator_pdm.domain.interfaces.sensor_gateway import SensorGateway
 from elevator_pdm.infrastructure.config.settings import Settings
 from elevator_pdm.infrastructure.messaging.mqtt_publisher import MqttPublisher
-from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
+from elevator_pdm.infrastructure.persistence.database import create_engine_and_session, init_db
 from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
 from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
 from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
+from elevator_pdm.infrastructure.sensors.modbus_gateway import ModbusGateway
 
 
 class _NoopQueue:
@@ -20,9 +22,14 @@ class _NoopQueue:
 
 
 def ensure_database_schema(engine) -> None:
-    from elevator_pdm.infrastructure.persistence import models
+    init_db(engine)
 
-    models.Base.metadata.create_all(bind=engine)
+
+def build_sensor_gateway(settings: Settings, gateway_name: str | None) -> SensorGateway:
+    selected_gateway = gateway_name or settings.sensors.source
+    if selected_gateway == "modbus":
+        return ModbusGateway(settings=settings)
+    return MockGateway()
 
 
 def ensure_elevator(session_factory, settings: Settings) -> None:
@@ -50,6 +57,11 @@ def main() -> None:
     parser.add_argument("--elevator-id", help="Override elevator id from settings")
     parser.add_argument("--interval-s", type=int, help="Polling interval in seconds")
     parser.add_argument("--max-cycles", type=int, help="Stop after N cycles")
+    parser.add_argument(
+        "--gateway",
+        choices=("mock", "modbus"),
+        help="Select mock data or real RS-485 Modbus polling",
+    )
     args = parser.parse_args()
 
     settings = Settings()
@@ -58,6 +70,7 @@ def main() -> None:
     engine, session_factory = create_engine_and_session(settings.database.url)
     ensure_database_schema(engine)
     ensure_elevator(session_factory, settings)
+    sensor_gateway = build_sensor_gateway(settings, args.gateway)
 
     mqtt_publisher = MqttPublisher(settings=settings)
     mqtt_publisher.connect()
@@ -68,7 +81,7 @@ def main() -> None:
             session = session_factory()
             try:
                 use_case = PollSensorsUseCase(
-                    sensor_gateway=MockGateway(),
+                    sensor_gateway=sensor_gateway,
                     reading_repo=SQLiteReadingRepo(session),
                     redis_queue=_NoopQueue(),
                     mqtt_publisher=mqtt_publisher,

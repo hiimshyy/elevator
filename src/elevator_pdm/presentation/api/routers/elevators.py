@@ -1,17 +1,16 @@
 """Elevator & Readings routers (Task D3)."""
 from datetime import datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from elevator_pdm.domain.interfaces.elevator_repository import ElevatorRepository
+from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
+from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
 from elevator_pdm.presentation.api.dependencies import (
     get_elevator_repository,
-    get_reading_repository,
     get_inference_repository,
+    get_reading_repository,
 )
-from elevator_pdm.domain.interfaces.elevator_repository import ElevatorRepository
-from elevator_pdm.domain.interfaces.reading_repository import ReadingRepository
-from elevator_pdm.domain.interfaces.inference_repository import InferenceRepository
 from elevator_pdm.presentation.api.schemas.requests import CreateElevatorRequest
 from elevator_pdm.presentation.api.schemas.responses import (
     ElevatorResponse,
@@ -55,7 +54,7 @@ def create_elevator(
     )
 
 
-@router.get("/", response_model=List[ElevatorResponse])
+@router.get("/", response_model=list[ElevatorResponse])
 def list_elevators(
     repo: ElevatorRepository = Depends(get_elevator_repository),
     inference_repo: InferenceRepository = Depends(get_inference_repository),
@@ -110,12 +109,12 @@ def get_elevator(
     )
 
 
-@router.get("/{elevator_id}/readings", response_model=List[SensorReadingResponse])
+@router.get("/{elevator_id}/readings", response_model=list[SensorReadingResponse])
 def get_readings(
     elevator_id: str,
-    from_time: Optional[datetime] = None,
-    to_time: Optional[datetime] = None,
-    sensor_id: Optional[str] = None,
+    from_time: datetime | None = None,
+    to_time: datetime | None = None,
+    sensor_id: str | None = None,
     limit: int = 500,
     repo: ReadingRepository = Depends(get_reading_repository),
     elev_repo: ElevatorRepository = Depends(get_elevator_repository),
@@ -154,6 +153,9 @@ def get_readings(
             env_temperature_c=r.env_temperature_c,
             env_humidity_pct=r.env_humidity_pct,
             load_kg=r.load_kg,
+            controller_register_1047=r.controller_register_1047,
+            controller_register_0x2121=r.controller_register_0x2121,
+            controller_register_0x2122=r.controller_register_0x2122,
             synced=r.synced,
         )
         for r in readings

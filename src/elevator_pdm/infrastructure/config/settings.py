@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,7 +19,10 @@ def _default_database_url() -> str:
 
 class SerialConfig(BaseModel):
     port: str = "/dev/ttyUSB0"
-    baudrate: int = 9600
+    baudrate: int = 19200
+    bytesize: int = 8
+    parity: str = "E"
+    stopbits: int = 1
     timeout_s: float = 1.0
 
 
@@ -29,9 +33,18 @@ class SensorConfig(BaseModel):
 
 
 class SensorsConfig(BaseModel):
+    source: Literal["mock", "modbus"] = "mock"
     vibration: SensorConfig = SensorConfig(slave_id=1, poll_interval_s=5, model="ES-VS-01")
     temp_humid: SensorConfig = SensorConfig(slave_id=2, poll_interval_s=30, model="ES35-SW")
     load: SensorConfig = SensorConfig(slave_id=3, poll_interval_s=1, model="RW-ST01D")
+
+
+class ControllerConfig(BaseModel):
+    slave_id: int = 1
+    register_1047: int = 1047
+    register_0x2121: int = 0x2121
+    register_0x2122: int = 0x2122
+    sensor_id: str = "CTRL-485-01"
 
 
 class ElevatorConfig(BaseModel):
@@ -88,6 +101,7 @@ class ApiConfig(BaseModel):
 class Settings(BaseSettings):
     serial: SerialConfig = SerialConfig()
     sensors: SensorsConfig = SensorsConfig()
+    controller: ControllerConfig = ControllerConfig()
     elevator: ElevatorConfig = ElevatorConfig()
     thresholds: ThresholdsConfig = ThresholdsConfig()
     models: ModelsConfig = ModelsConfig()

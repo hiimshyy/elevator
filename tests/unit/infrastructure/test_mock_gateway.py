@@ -1,5 +1,6 @@
 """Tests for MockGateway sensor implementation."""
 import pytest
+
 from src.elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
 
 
@@ -64,3 +65,13 @@ def test_fixed_seed_reproducible():
     for r1, r2 in zip(results1, results2):
         assert r1["accel_rms_mg"] == pytest.approx(r2["accel_rms_mg"])
         assert r1["peak_accel_mg"] == pytest.approx(r2["peak_accel_mg"])
+
+
+def test_read_controller_returns_valid_dict():
+    gw = MockGateway(seed=42)
+    result = gw.read_controller()
+    assert result["sensor_id"] == "CTRL-485-01"
+    assert 0 <= result["controller_register_1047"] <= 65535
+    assert 0 <= result["controller_register_0x2121"] <= 65535
+    assert 0 <= result["controller_register_0x2122"] <= 65535
+    assert "timestamp" in result

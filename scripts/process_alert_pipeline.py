@@ -10,7 +10,7 @@ from elevator_pdm.application.use_cases.process_elevator_readings import (
 )
 from elevator_pdm.infrastructure.config.settings import Settings
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
-from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
+from elevator_pdm.infrastructure.persistence.database import create_engine_and_session, init_db
 from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
 from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
 from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SQLiteInferenceRepo
@@ -19,9 +19,7 @@ from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteRe
 
 def ensure_database_schema(engine) -> None:
     """Create missing tables so worker can start before API."""
-    from elevator_pdm.infrastructure.persistence import models
-
-    models.Base.metadata.create_all(bind=engine)
+    init_db(engine)
 
 
 def main() -> None:

@@ -55,6 +55,15 @@ async def sensor_stream(
                     ),
                     "env_humidity_pct": latest_reading.env_humidity_pct if latest_reading else None,
                     "load_kg": latest_reading.load_kg if latest_reading else None,
+                    "controller_register_1047": (
+                        latest_reading.controller_register_1047 if latest_reading else None
+                    ),
+                    "controller_register_0x2121": (
+                        latest_reading.controller_register_0x2121 if latest_reading else None
+                    ),
+                    "controller_register_0x2122": (
+                        latest_reading.controller_register_0x2122 if latest_reading else None
+                    ),
                 } if latest_reading else None,
                 "inference": {
                     "status": latest_inference.status if latest_inference else None,

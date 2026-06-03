@@ -56,6 +56,7 @@ class PollSensorsUseCase:
         sensor_key: str,
         read_method,
         elevator_id: str,
+        controller_data: dict | None = None,
     ) -> SensorReading | None:
         """Poll a single sensor with error handling and backoff tracking."""
         try:
@@ -76,10 +77,26 @@ class PollSensorsUseCase:
                 ),
                 env_humidity_pct=data.get("humidity_pct"),
                 load_kg=data.get("load_kg"),
+                controller_register_1047=(
+                    controller_data.get("controller_register_1047") if controller_data else None
+                ),
+                controller_register_0x2121=(
+                    controller_data.get("controller_register_0x2121") if controller_data else None
+                ),
+                controller_register_0x2122=(
+                    controller_data.get("controller_register_0x2122") if controller_data else None
+                ),
             )
             return reading
         except (SensorUnavailableError, Exception):
             self._consecutive_errors[sensor_key] += 1
+            return None
+
+    def _read_controller(self) -> dict | None:
+        try:
+            return self._gateway.read_controller()
+        except (SensorUnavailableError, Exception) as exc:
+            logger.warning("Controller register read failed: %s", exc)
             return None
 
     def execute(self, elevator_id: str = "elev-001") -> dict:
@@ -88,10 +105,17 @@ class PollSensorsUseCase:
         Returns:
             Dict with keys: success (list of sensor_ids), failed (list of sensor_keys)
         """
-        results = {"success": [], "failed": []}
+        results = {"success": [], "failed": [], "controller_available": False}
+        controller_data = self._read_controller()
+        results["controller_available"] = controller_data is not None
 
         # Poll vibration sensor
-        reading = self._poll_one("vibration", self._gateway.read_vibration, elevator_id)
+        reading = self._poll_one(
+            "vibration",
+            self._gateway.read_vibration,
+            elevator_id,
+            controller_data=controller_data,
+        )
         if reading:
             self._reading_repo.save(reading)
             payload = asdict(reading)
@@ -102,7 +126,12 @@ class PollSensorsUseCase:
             results["failed"].append("vibration")
 
         # Poll temp/humidity sensor
-        reading = self._poll_one("temp_humidity", self._gateway.read_temp_humidity, elevator_id)
+        reading = self._poll_one(
+            "temp_humidity",
+            self._gateway.read_temp_humidity,
+            elevator_id,
+            controller_data=controller_data,
+        )
         if reading:
             self._reading_repo.save(reading)
             payload = asdict(reading)
@@ -113,7 +142,12 @@ class PollSensorsUseCase:
             results["failed"].append("temp_humidity")
 
         # Poll load sensor
-        reading = self._poll_one("load", self._gateway.read_load, elevator_id)
+        reading = self._poll_one(
+            "load",
+            self._gateway.read_load,
+            elevator_id,
+            controller_data=controller_data,
+        )
         if reading:
             self._reading_repo.save(reading)
             payload = asdict(reading)
@@ -130,6 +164,22 @@ class PollSensorsUseCase:
                 "timestamp": datetime.now(UTC).isoformat(),
                 "success": list(results["success"]),
                 "failed": list(results["failed"]),
+                "controller": (
+                    {
+                        "sensor_id": controller_data.get("sensor_id"),
+                        "controller_register_1047": controller_data.get(
+                            "controller_register_1047"
+                        ),
+                        "controller_register_0x2121": controller_data.get(
+                            "controller_register_0x2121"
+                        ),
+                        "controller_register_0x2122": controller_data.get(
+                            "controller_register_0x2122"
+                        ),
+                    }
+                    if controller_data
+                    else None
+                ),
                 "backoff": self.get_backoff_status(),
             }
         )
