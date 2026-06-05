@@ -24,6 +24,9 @@ export interface SensorReading {
   env_temperature_c: number | null;
   env_humidity_pct: number | null;
   load_kg: number | null;
+  controller_register_1047: number | null;
+  controller_register_0x2121: number | null;
+  controller_register_0x2122: number | null;
   synced: number;
 }
 

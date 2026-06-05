@@ -19,6 +19,9 @@ interface LivePoint {
   velocityRmsMms: number;
   loadKg: number;
   temperatureC: number;
+  controllerRegister1047: number | null;
+  controllerRegister0x2121: number | null;
+  controllerRegister0x2122: number | null;
   source: "actual" | "synthetic";
 }
 
@@ -32,6 +35,9 @@ interface LiveStreamMessage {
     load_kg: number | null;
     vib_temperature_c: number | null;
     env_temperature_c: number | null;
+    controller_register_1047: number | null;
+    controller_register_0x2121: number | null;
+    controller_register_0x2122: number | null;
   } | null;
   inference: {
     status: string | null;
@@ -48,6 +54,9 @@ function normalizeReading(reading: SensorReading): LivePoint {
     velocityRmsMms: reading.velocity_rms_mms ?? 0,
     loadKg: reading.load_kg ?? 0,
     temperatureC: reading.vib_temperature_c ?? reading.env_temperature_c ?? 0,
+    controllerRegister1047: reading.controller_register_1047 ?? null,
+    controllerRegister0x2121: reading.controller_register_0x2121 ?? null,
+    controllerRegister0x2122: reading.controller_register_0x2122 ?? null,
     source: "actual"
   };
 }
@@ -106,6 +115,9 @@ function createSyntheticPoint(
     temperatureC: clampMetric(
       latest.temperatureC + trend.temperatureC + secondaryJitter * amplitude.temperatureC
     ),
+    controllerRegister1047: latest.controllerRegister1047,
+    controllerRegister0x2121: latest.controllerRegister0x2121,
+    controllerRegister0x2122: latest.controllerRegister0x2122,
     source: "synthetic"
   };
 }
@@ -146,6 +158,14 @@ function formatTimestamp(value: string): string {
     dateStyle: "medium",
     timeStyle: "medium"
   }).format(date);
+}
+
+function formatControllerValue(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) {
+    return "N/A";
+  }
+
+  return value.toLocaleString();
 }
 
 export function LiveMonitorPage(): JSX.Element {
@@ -248,6 +268,9 @@ export function LiveMonitorPage(): JSX.Element {
           velocityRmsMms: readings.velocity_rms_mms ?? 0,
           loadKg: readings.load_kg ?? 0,
           temperatureC: readings.vib_temperature_c ?? readings.env_temperature_c ?? 0,
+          controllerRegister1047: readings.controller_register_1047 ?? null,
+          controllerRegister0x2121: readings.controller_register_0x2121 ?? null,
+          controllerRegister0x2122: readings.controller_register_0x2122 ?? null,
           source: "actual"
         })
       );
@@ -271,10 +294,21 @@ export function LiveMonitorPage(): JSX.Element {
   const latestActualPoint = points[points.length - 1] ?? null;
   const latestDisplayPoint = displayPoints[displayPoints.length - 1] ?? null;
   const hasData = displayPoints.length > 0;
+  const hasControllerData = Boolean(
+    latestActualPoint &&
+      (latestActualPoint.controllerRegister1047 !== null ||
+        latestActualPoint.controllerRegister0x2121 !== null ||
+        latestActualPoint.controllerRegister0x2122 !== null)
+  );
   const secondsSinceActualSample = latestActualPoint
     ? Math.max(0, Math.floor((nowMs - new Date(latestActualPoint.timestamp).getTime()) / 1000))
     : null;
-  const streamPhase = secondsSinceActualSample === null ? "Awaiting first packet" : secondsSinceActualSample < 5 ? "Collecting" : "Holding last packet";
+  const streamPhase =
+    secondsSinceActualSample === null
+      ? "Awaiting first packet"
+      : secondsSinceActualSample < 5
+        ? "Collecting"
+        : "Holding last packet";
 
   const chartSeries = useMemo(
     () => ({
@@ -327,34 +361,71 @@ export function LiveMonitorPage(): JSX.Element {
       ) : null}
 
       {latestActualPoint ? (
-        <div className="metric-banner metric-banner--live">
-          <div>
-            <span className="fleet-card__eyebrow">Latest packet</span>
-            <strong>{formatTimestamp(latestActualPoint.timestamp)}</strong>
+        <>
+          <div className="metric-banner metric-banner--live">
+            <div>
+              <span className="fleet-card__eyebrow">Latest packet</span>
+              <strong>{formatTimestamp(latestActualPoint.timestamp)}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Realtime phase</span>
+              <strong>{streamPhase}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Packet age</span>
+              <strong>{secondsSinceActualSample ?? 0}s ago</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Rendered samples</span>
+              <strong>{displayPoints.length}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Signal source</span>
+              <strong>
+                {latestDisplayPoint?.source === "synthetic" ? "Interpolated live trace" : "Live packet"}
+              </strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Selected elevator</span>
+              <strong>{selectedElevator}</strong>
+            </div>
           </div>
-          <div>
-            <span className="fleet-card__eyebrow">Realtime phase</span>
-            <strong>{streamPhase}</strong>
+
+          <div className="metric-banner">
+            <div>
+              <span className="fleet-card__eyebrow">Controller (RS-485)</span>
+              <strong>{hasControllerData ? "Connected" : "No controller data"}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Register 1047</span>
+              <strong>{formatControllerValue(latestActualPoint.controllerRegister1047)}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Register 0x2121</span>
+              <strong>{formatControllerValue(latestActualPoint.controllerRegister0x2121)}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Register 0x2122</span>
+              <strong>{formatControllerValue(latestActualPoint.controllerRegister0x2122)}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Controller timestamp</span>
+              <strong>{formatTimestamp(latestActualPoint.timestamp)}</strong>
+            </div>
+            <div>
+              <span className="fleet-card__eyebrow">Field note</span>
+              <strong>
+                {hasControllerData ? "Live controller values" : "Waiting for controller packet"}
+              </strong>
+            </div>
           </div>
-          <div>
-            <span className="fleet-card__eyebrow">Packet age</span>
-            <strong>{secondsSinceActualSample ?? 0}s ago</strong>
+
+          <div className="callout">
+            Controller values above come from the RS-485 elevator controller. The vibration,
+            temperature, and load charts remain mock-generated while the external sensors are not
+            installed.
           </div>
-          <div>
-            <span className="fleet-card__eyebrow">Rendered samples</span>
-            <strong>{displayPoints.length}</strong>
-          </div>
-          <div>
-            <span className="fleet-card__eyebrow">Signal source</span>
-            <strong>
-              {latestDisplayPoint?.source === "synthetic" ? "Interpolated live trace" : "Live packet"}
-            </strong>
-          </div>
-          <div>
-            <span className="fleet-card__eyebrow">Selected elevator</span>
-            <strong>{selectedElevator}</strong>
-          </div>
-        </div>
+        </>
       ) : null}
 
       {hasData ? (
