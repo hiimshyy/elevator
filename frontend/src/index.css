@@ -37,39 +37,6 @@ code {
   min-height: 100vh;
 }
 
-.crash-screen {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
-}
-
-.crash-card {
-  display: grid;
-  gap: 1rem;
-  width: min(42rem, 100%);
-  padding: 1.5rem;
-  border: 1px solid rgba(157, 52, 52, 0.22);
-  border-radius: 1.25rem;
-  background: rgba(255, 244, 244, 0.96);
-  box-shadow: 0 18px 38px rgba(33, 70, 80, 0.08);
-}
-
-.crash-card h1,
-.crash-card p {
-  margin: 0;
-}
-
-.crash-card pre {
-  margin: 0;
-  padding: 1rem;
-  border-radius: 0.9rem;
-  background: rgba(122, 29, 29, 0.08);
-  color: #7a1d1d;
-  overflow-x: auto;
-  white-space: pre-wrap;
-}
-
 .app-shell {
   display: grid;
   grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
