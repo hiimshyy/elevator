@@ -1,6 +1,8 @@
 import json
 import logging
 import threading
+import time
+from collections import deque
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -22,12 +24,17 @@ class MqttPublisher:
         self._config = self._settings.mqtt
         self._validate_config()
         self._connected = threading.Event()
+        self._connect_lock = threading.Lock()
         self._loop_started = False
+        self._reconnect_failures = 0
+        self._next_connect_not_before = 0.0
+        self._pending_messages: deque[tuple[str, dict[str, Any]]] = deque(maxlen=200)
         self._client = mqtt.Client(
             callback_api_version=CallbackAPIVersion.VERSION2,
             client_id=self._config.client_id,
         )
         self._client.username_pw_set(self._config.username, self._config.password)
+        self._client.reconnect_delay_set(min_delay=1, max_delay=30)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
 
@@ -50,6 +57,8 @@ class MqttPublisher:
         # rc.value for Paho MQTT v2 is 0 on success
         if hasattr(rc, "value") and rc.value == 0 or rc == 0:
             self._connected.set()
+            self._reconnect_failures = 0
+            self._next_connect_not_before = 0.0
             logger.info(
                 "Connected to MQTT Broker at %s:%s",
                 self._config.broker_url,
@@ -68,10 +77,28 @@ class MqttPublisher:
         properties: Any = None,
     ) -> None:
         self._connected.clear()
+        if rc != 0:
+            self._reconnect_failures += 1
+            self._next_connect_not_before = time.monotonic() + self._reconnect_delay_s()
         logger.warning("Disconnected from MQTT Broker with return code %s", rc)
 
     def connect(self, timeout_s: float = 5.0) -> bool:
         """Connects to the MQTT broker and starts the background network loop."""
+        now = time.monotonic()
+        if now < self._next_connect_not_before:
+            retry_in_s = self._next_connect_not_before - now
+            logger.warning(
+                "Skipping MQTT reconnect attempt for %.1fs because broker is in cooldown",
+                retry_in_s,
+            )
+            return False
+
+        if self._connected.is_set():
+            return True
+
+        if not self._connect_lock.acquire(blocking=False):
+            return self._connected.wait(timeout=timeout_s)
+
         try:
             if not self._loop_started:
                 host = self._config.broker_url.strip()
@@ -89,12 +116,18 @@ class MqttPublisher:
                     self._config.broker_url,
                     self._config.port,
                 )
+                self._reconnect_failures += 1
+                self._next_connect_not_before = time.monotonic() + self._reconnect_delay_s()
                 return False
             return True
         except Exception as e:
             logger.error("Error connecting to MQTT Broker: %s", e)
             self._connected.clear()
+            self._reconnect_failures += 1
+            self._next_connect_not_before = time.monotonic() + self._reconnect_delay_s()
             return False
+        finally:
+            self._connect_lock.release()
 
     def disconnect(self) -> None:
         """Stops the network loop and disconnects from the broker."""
@@ -102,6 +135,7 @@ class MqttPublisher:
             self._client.loop_stop()
             self._loop_started = False
         self._connected.clear()
+        self._next_connect_not_before = 0.0
         self._client.disconnect()
 
     def publish_reading(self, payload: dict[str, Any]) -> bool:
@@ -120,9 +154,11 @@ class MqttPublisher:
         """Internal generic publish method."""
         try:
             if not self._ensure_connected():
+                self._enqueue_pending(topic, payload)
                 logger.error("MQTT publish skipped because client is not connected")
                 return False
 
+            self._flush_pending()
             msg_str = json.dumps(payload)
             # paho-mqtt version 2.0+ publish() returns MQTTMessageInfo
             result = self._client.publish(topic, msg_str, qos=self._config.qos)
@@ -131,9 +167,11 @@ class MqttPublisher:
             if result.is_published():
                 logger.debug("Successfully published message to %s", topic)
                 return True
+            self._enqueue_pending(topic, payload)
             logger.error("Failed to publish message to %s", topic)
             return False
         except Exception as e:
+            self._enqueue_pending(topic, payload)
             logger.error("Exception during MQTT publish: %s", e)
             return False
 
@@ -141,3 +179,39 @@ class MqttPublisher:
         if self._connected.is_set():
             return True
         return self.connect(timeout_s=5.0)
+
+    def _enqueue_pending(self, topic: str, payload: dict[str, Any]) -> None:
+        queue_was_full = len(self._pending_messages) == self._pending_messages.maxlen
+        self._pending_messages.append((topic, payload))
+        if queue_was_full:
+            logger.warning(
+                "MQTT pending queue reached capacity; oldest message was dropped for client %s",
+                self._config.client_id,
+            )
+
+    def _flush_pending(self) -> None:
+        if not self._pending_messages or not self._connected.is_set():
+            return
+
+        pending_count = len(self._pending_messages)
+        logger.info("Flushing %s queued MQTT message(s)", pending_count)
+        for _ in range(pending_count):
+            topic, payload = self._pending_messages.popleft()
+            if not self._publish_immediately(topic, payload):
+                self._pending_messages.appendleft((topic, payload))
+                break
+
+    def _publish_immediately(self, topic: str, payload: dict[str, Any]) -> bool:
+        msg_str = json.dumps(payload)
+        result = self._client.publish(topic, msg_str, qos=self._config.qos)
+        result.wait_for_publish(timeout=5.0)
+        if result.is_published():
+            logger.debug("Successfully published message to %s", topic)
+            return True
+        logger.error("Failed to publish message to %s", topic)
+        return False
+
+    def _reconnect_delay_s(self) -> float:
+        if self._reconnect_failures <= 0:
+            return 0.0
+        return float(min(2 ** (self._reconnect_failures - 1), 30))
