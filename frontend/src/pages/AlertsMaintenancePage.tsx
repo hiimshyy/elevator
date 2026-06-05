@@ -22,16 +22,26 @@ function formatTimestamp(value: string | null): string {
     return "N/A";
   }
 
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function getAlertTone(alert: AlertRecord): string {

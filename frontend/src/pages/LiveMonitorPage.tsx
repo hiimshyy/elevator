@@ -137,10 +137,15 @@ function buildDisplayPoints(actualPoints: LivePoint[], nowMs: number): LivePoint
 }
 
 function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "medium"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function LiveMonitorPage(): JSX.Element {

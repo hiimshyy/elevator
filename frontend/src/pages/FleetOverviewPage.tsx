@@ -27,14 +27,23 @@ function getStatusTone(elevator: ElevatorSummary): string {
 }
 
 function formatHealthScore(score: number | null): string {
-  return score === null ? "N/A" : `${score.toFixed(1)} / 100`;
+  return typeof score === "number" && Number.isFinite(score) ? `${score.toFixed(1)} / 100` : "N/A";
 }
 
 function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short"
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function formatCapacity(value: number): string {
+  return Number.isFinite(value) ? `${value.toFixed(0)} kg` : "N/A";
 }
 
 export function FleetOverviewPage(): JSX.Element {
@@ -149,7 +158,7 @@ export function FleetOverviewPage(): JSX.Element {
                 </div>
                 <div>
                   <dt>Capacity</dt>
-                  <dd>{elevator.max_capacity_kg.toFixed(0)} kg</dd>
+                  <dd>{formatCapacity(elevator.max_capacity_kg)}</dd>
                 </div>
                 <div>
                   <dt>Created</dt>
