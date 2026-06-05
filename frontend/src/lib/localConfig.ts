@@ -59,10 +59,37 @@ function getDefaultApiBaseUrl(): string {
 }
 
 function normalizeConfig(value: Partial<LocalConfigState>): LocalConfigState {
+  const normalizedApiBaseUrl = normalizeApiBaseUrl(value.apiBaseUrl ?? getDefaultApiBaseUrl());
+  const migratedApiBaseUrl = migrateLocalhostApiBaseUrl(normalizedApiBaseUrl);
+
   return {
-    apiBaseUrl: normalizeApiBaseUrl(value.apiBaseUrl ?? getDefaultApiBaseUrl()),
+    apiBaseUrl: migratedApiBaseUrl,
     apiKey: normalizeApiKey(value.apiKey ?? defaultApiKey)
   };
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function migrateLocalhostApiBaseUrl(value: string): string {
+  if (typeof window === "undefined") {
+    return value;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (
+      isLoopbackHostname(parsed.hostname) &&
+      !isLoopbackHostname(window.location.hostname)
+    ) {
+      return getDefaultApiBaseUrl();
+    }
+  } catch {
+    return getDefaultApiBaseUrl();
+  }
+
+  return value;
 }
 
 function readStoredConfig(): Partial<LocalConfigState> {
