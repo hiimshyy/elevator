@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 
 from elevator_pdm.application.use_cases.poll_sensors import PollSensorsUseCase
@@ -12,8 +13,11 @@ from elevator_pdm.infrastructure.messaging.mqtt_publisher import MqttPublisher
 from elevator_pdm.infrastructure.persistence.database import create_engine_and_session, init_db
 from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
 from elevator_pdm.infrastructure.persistence.sqlite_reading_repo import SQLiteReadingRepo
+from elevator_pdm.infrastructure.sensors.hybrid_gateway import HybridGateway
 from elevator_pdm.infrastructure.sensors.mock_gateway import MockGateway
 from elevator_pdm.infrastructure.sensors.modbus_gateway import ModbusGateway
+
+logger = logging.getLogger(__name__)
 
 
 class _NoopQueue:
@@ -29,6 +33,8 @@ def build_sensor_gateway(settings: Settings, gateway_name: str | None) -> Sensor
     selected_gateway = gateway_name or settings.sensors.source
     if selected_gateway == "modbus":
         return ModbusGateway(settings=settings)
+    if selected_gateway == "hybrid":
+        return HybridGateway(settings=settings)
     return MockGateway()
 
 
@@ -59,10 +65,14 @@ def main() -> None:
     parser.add_argument("--max-cycles", type=int, help="Stop after N cycles")
     parser.add_argument(
         "--gateway",
-        choices=("mock", "modbus"),
-        help="Select mock data or real RS-485 Modbus polling",
+        choices=("mock", "modbus", "hybrid"),
+        help="Select mock, real RS-485 Modbus, or controller+mock hybrid polling",
     )
     args = parser.parse_args()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
     settings = Settings()
     elevator_id = args.elevator_id or settings.elevator.id
@@ -86,7 +96,18 @@ def main() -> None:
                     redis_queue=_NoopQueue(),
                     mqtt_publisher=mqtt_publisher,
                 )
-                use_case.execute(elevator_id=elevator_id)
+                result = use_case.execute(elevator_id=elevator_id)
+                logger.info(
+                    (
+                        "Poll cycle complete gateway=%s elevator=%s success=%s "
+                        "failed=%s controller_available=%s"
+                    ),
+                    args.gateway or settings.sensors.source,
+                    elevator_id,
+                    ",".join(result["success"]) if result["success"] else "none",
+                    ",".join(result["failed"]) if result["failed"] else "none",
+                    result["controller_available"],
+                )
             finally:
                 session.close()
 

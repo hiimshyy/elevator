@@ -33,7 +33,7 @@ class SensorConfig(BaseModel):
 
 
 class SensorsConfig(BaseModel):
-    source: Literal["mock", "modbus"] = "mock"
+    source: Literal["mock", "modbus", "hybrid"] = "mock"
     vibration: SensorConfig = SensorConfig(slave_id=1, poll_interval_s=5, model="ES-VS-01")
     temp_humid: SensorConfig = SensorConfig(slave_id=2, poll_interval_s=30, model="ES35-SW")
     load: SensorConfig = SensorConfig(slave_id=3, poll_interval_s=1, model="RW-ST01D")

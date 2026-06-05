@@ -30,6 +30,12 @@ def test_loads_from_config_yaml():
     assert settings.alerts.rate_limit_minutes == 15
 
 
+def test_sensor_source_accepts_hybrid(monkeypatch):
+    monkeypatch.setenv("ELEVATOR_SENSORS__SOURCE", "hybrid")
+    settings = Settings()
+    assert settings.sensors.source == "hybrid"
+
+
 def test_env_vars_override_yaml(monkeypatch):
     monkeypatch.setenv("ELEVATOR_SERIAL__PORT", "/dev/ttyUSB1")
     settings = Settings()
