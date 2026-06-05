@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-const defaultApiBaseUrl = "http://localhost:8000/api";
-const defaultApiKey = "elevator-secret-key-123";
+const fallbackApiBaseUrl = "http://localhost:8000/api";
+const defaultApiKey = import.meta.env.VITE_API_KEY?.trim() || "elevator-secret-key-123";
 const storageKey = "elevator-pdm.local-config";
 
 interface LocalConfigState {
@@ -30,7 +30,7 @@ if (typeof window !== "undefined") {
 
 function normalizeApiBaseUrl(value: string): string {
   const trimmed = value.trim();
-  const nextValue = trimmed || defaultApiBaseUrl;
+  const nextValue = trimmed || getDefaultApiBaseUrl();
   return nextValue.replace(/\/+$/, "");
 }
 
@@ -39,9 +39,28 @@ function normalizeApiKey(value: string): string {
   return trimmed || defaultApiKey;
 }
 
+function getDefaultApiBaseUrl(): string {
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  if (typeof window === "undefined") {
+    return fallbackApiBaseUrl;
+  }
+
+  const url = new URL(window.location.href);
+  url.protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  url.port = "8000";
+  url.pathname = "/api";
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/+$/, "");
+}
+
 function normalizeConfig(value: Partial<LocalConfigState>): LocalConfigState {
   return {
-    apiBaseUrl: normalizeApiBaseUrl(value.apiBaseUrl ?? defaultApiBaseUrl),
+    apiBaseUrl: normalizeApiBaseUrl(value.apiBaseUrl ?? getDefaultApiBaseUrl()),
     apiKey: normalizeApiKey(value.apiKey ?? defaultApiKey)
   };
 }
@@ -69,6 +88,7 @@ export function buildWsBaseUrl(apiBaseUrl: string): string {
 
 export function getLocalConfig(): LocalConfig {
   const resolved = normalizeConfig(readStoredConfig());
+  const defaultApiBaseUrl = getDefaultApiBaseUrl();
 
   return {
     ...resolved,
@@ -110,7 +130,7 @@ export function useLocalConfig(): LocalConfig {
 
 export function getDefaultLocalConfig(): LocalConfigState {
   return {
-    apiBaseUrl: defaultApiBaseUrl,
+    apiBaseUrl: getDefaultApiBaseUrl(),
     apiKey: defaultApiKey
   };
 }
