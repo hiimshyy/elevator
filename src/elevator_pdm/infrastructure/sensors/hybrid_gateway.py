@@ -18,7 +18,10 @@ class HybridGateway(SensorGateway):
     ) -> None:
         self._settings = settings or Settings()
         self._mock_gateway = MockGateway(seed=seed)
-        self._modbus_gateway = ModbusGateway(settings=self._settings)
+        self._modbus_gateway = ModbusGateway(
+            settings=self._settings,
+            enabled_sensors={"controller"},
+        )
 
     def read_vibration(self) -> dict[str, Any]:
         return self._mock_gateway.read_vibration()

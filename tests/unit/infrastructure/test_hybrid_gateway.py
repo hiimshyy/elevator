@@ -48,6 +48,10 @@ def test_hybrid_gateway_uses_modbus_for_controller(
     gateway = HybridGateway()
     result = gateway.read_controller()
 
+    modbus_gateway_class.assert_called_once_with(
+        settings=gateway._settings,
+        enabled_sensors={"controller"},
+    )
     assert result["sensor_id"] == "CTRL-485-01"
     assert result["controller_register_1047"] == 100
     assert result["controller_register_0x2121"] == 200

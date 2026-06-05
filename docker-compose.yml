@@ -89,6 +89,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models:ro
+    devices:
+      - ${ELEVATOR_SERIAL__PORT:-/dev/ttyUSB0}:${ELEVATOR_SERIAL__PORT:-/dev/ttyUSB0}
     restart: unless-stopped
 
   frontend:

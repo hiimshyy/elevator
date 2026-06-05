@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -45,25 +46,61 @@ class ModbusGateway(SensorGateway):
         2: serial.STOPBITS_TWO,
     }
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        enabled_sensors: Iterable[str] | None = None,
+    ) -> None:
         self._settings = settings or Settings()
+        self._enabled_sensors = set(
+            enabled_sensors or ("vibration", "temp_humidity", "load", "controller")
+        )
         port = self._settings.serial.port
 
-        self._vib = minimalmodbus.Instrument(port, self._settings.sensors.vibration.slave_id)
-        self._temp = minimalmodbus.Instrument(port, self._settings.sensors.temp_humid.slave_id)
-        self._load = minimalmodbus.Instrument(port, self._settings.sensors.load.slave_id)
-        self._controller = minimalmodbus.Instrument(port, self._settings.controller.slave_id)
+        self._vib = self._build_instrument(
+            port, self._settings.sensors.vibration.slave_id, "vibration"
+        )
+        self._temp = self._build_instrument(
+            port, self._settings.sensors.temp_humid.slave_id, "temp_humidity"
+        )
+        self._load = self._build_instrument(
+            port, self._settings.sensors.load.slave_id, "load"
+        )
+        self._controller = self._build_instrument(
+            port, self._settings.controller.slave_id, "controller"
+        )
 
-        for instrument in (self._vib, self._temp, self._load, self._controller):
-            self._configure_instrument(instrument)
+    def _build_instrument(
+        self,
+        port: str,
+        slave_id: int,
+        sensor_name: str,
+    ) -> minimalmodbus.Instrument | None:
+        if sensor_name not in self._enabled_sensors:
+            return None
 
-    def _configure_instrument(self, instrument: minimalmodbus.Instrument) -> None:
+        instrument = minimalmodbus.Instrument(port, slave_id)
+        self._configure_instrument(instrument)
+        return instrument
+
+    def _configure_instrument(self, instrument: minimalmodbus.Instrument | None) -> None:
+        if instrument is None:
+            return
         assert instrument.serial is not None
         instrument.serial.baudrate = self._settings.serial.baudrate
         instrument.serial.timeout = self._settings.serial.timeout_s
         instrument.serial.bytesize = self._BYTESIZE_MAP[self._settings.serial.bytesize]
         instrument.serial.parity = self._PARITY_MAP[self._settings.serial.parity.upper()]
         instrument.serial.stopbits = self._STOPBITS_MAP[self._settings.serial.stopbits]
+
+    def _require_instrument(
+        self,
+        instrument: minimalmodbus.Instrument | None,
+        sensor_name: str,
+    ) -> minimalmodbus.Instrument:
+        if instrument is None:
+            raise SensorUnavailableError(f"{sensor_name} is not enabled in this gateway")
+        return instrument
 
     def _read_float(self, instrument: minimalmodbus.Instrument, register: int) -> float:
         """Read a 32-bit float from two consecutive 16-bit registers."""
@@ -75,12 +112,13 @@ class ModbusGateway(SensorGateway):
 
     def read_vibration(self) -> dict[str, Any]:
         try:
+            instrument = self._require_instrument(self._vib, "Vibration sensor")
             return {
                 "sensor_id": "ES-VS-01",
-                "accel_rms_mg": self._read_float(self._vib, 0x00),
-                "velocity_rms_mms": self._read_float(self._vib, 0x02),
-                "peak_accel_mg": self._read_float(self._vib, 0x04),
-                "temperature_c": self._read_float(self._vib, 0x06),
+                "accel_rms_mg": self._read_float(instrument, 0x00),
+                "velocity_rms_mms": self._read_float(instrument, 0x02),
+                "peak_accel_mg": self._read_float(instrument, 0x04),
+                "temperature_c": self._read_float(instrument, 0x06),
                 "timestamp": datetime.now(UTC).isoformat(),
             }
         except (minimalmodbus.NoResponseError, minimalmodbus.InvalidResponseError, OSError) as e:
@@ -88,10 +126,11 @@ class ModbusGateway(SensorGateway):
 
     def read_temp_humidity(self) -> dict[str, Any]:
         try:
+            instrument = self._require_instrument(self._temp, "Temp/humidity sensor")
             return {
                 "sensor_id": "ES35-SW",
-                "temperature_c": self._read_float(self._temp, 0x00),
-                "humidity_pct": self._read_float(self._temp, 0x02),
+                "temperature_c": self._read_float(instrument, 0x00),
+                "humidity_pct": self._read_float(instrument, 0x02),
                 "timestamp": datetime.now(UTC).isoformat(),
             }
         except (minimalmodbus.NoResponseError, minimalmodbus.InvalidResponseError, OSError) as e:
@@ -99,9 +138,10 @@ class ModbusGateway(SensorGateway):
 
     def read_load(self) -> dict[str, Any]:
         try:
+            instrument = self._require_instrument(self._load, "Load cell")
             return {
                 "sensor_id": "RW-ST01D",
-                "load_kg": self._read_float(self._load, 0x00),
+                "load_kg": self._read_float(instrument, 0x00),
                 "timestamp": datetime.now(UTC).isoformat(),
             }
         except (minimalmodbus.NoResponseError, minimalmodbus.InvalidResponseError, OSError) as e:
@@ -109,16 +149,17 @@ class ModbusGateway(SensorGateway):
 
     def read_controller(self) -> dict[str, Any]:
         try:
+            instrument = self._require_instrument(self._controller, "Controller registers")
             return {
                 "sensor_id": self._settings.controller.sensor_id,
                 "controller_register_1047": self._read_register(
-                    self._controller, self._settings.controller.register_1047
+                    instrument, self._settings.controller.register_1047
                 ),
                 "controller_register_0x2121": self._read_register(
-                    self._controller, self._settings.controller.register_0x2121
+                    instrument, self._settings.controller.register_0x2121
                 ),
                 "controller_register_0x2122": self._read_register(
-                    self._controller, self._settings.controller.register_0x2122
+                    instrument, self._settings.controller.register_0x2122
                 ),
                 "timestamp": datetime.now(UTC).isoformat(),
             }

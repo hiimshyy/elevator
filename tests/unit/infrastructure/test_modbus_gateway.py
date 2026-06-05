@@ -116,3 +116,18 @@ def test_creates_four_instruments_with_expected_serial_settings(instrument_insta
         assert instrument.serial.bytesize == serial.EIGHTBITS
         assert instrument.serial.parity == serial.PARITY_EVEN
         assert instrument.serial.stopbits == serial.STOPBITS_ONE
+
+
+def test_can_create_controller_only_gateway(instrument_instances):
+    mock_cls, instances = instrument_instances
+
+    gw = ModbusGateway(enabled_sensors={"controller"})
+    controller = instances[0]
+    controller.read_register.side_effect = [100, 200, 201]
+
+    result = gw.read_controller()
+
+    assert mock_cls.call_count == 1
+    assert result["controller_register_1047"] == 100
+    assert result["controller_register_0x2121"] == 200
+    assert result["controller_register_0x2122"] == 201
