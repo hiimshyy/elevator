@@ -15,8 +15,12 @@ export interface LocalConfig extends LocalConfigState {
 }
 
 const listeners = new Set<() => void>();
+let cachedConfigKey: string | null = null;
+let cachedConfigSnapshot: LocalConfig | null = null;
 
 function notifyListeners(): void {
+  cachedConfigKey = null;
+  cachedConfigSnapshot = null;
   listeners.forEach((listener) => listener());
 }
 
@@ -92,37 +96,55 @@ function migrateLocalhostApiBaseUrl(value: string): string {
   return value;
 }
 
-function readStoredConfig(): Partial<LocalConfigState> {
-  if (typeof window === "undefined") {
-    return {};
-  }
-
-  const rawValue = window.localStorage.getItem(storageKey);
-  if (!rawValue) {
+function readStoredConfig(rawValue?: string | null): Partial<LocalConfigState> {
+  const resolvedRawValue =
+    rawValue ?? (typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null);
+  if (!resolvedRawValue) {
     return {};
   }
 
   try {
-    return JSON.parse(rawValue) as Partial<LocalConfigState>;
+    return JSON.parse(resolvedRawValue) as Partial<LocalConfigState>;
   } catch {
     return {};
   }
 }
 
-export function buildWsBaseUrl(apiBaseUrl: string): string {
-  return normalizeApiBaseUrl(apiBaseUrl).replace(/^http/, "ws").replace(/\/api$/, "");
+function getConfigCacheKey(rawValue: string | null, defaultApiBaseUrl: string): string {
+  return JSON.stringify({
+    rawValue,
+    defaultApiBaseUrl,
+    defaultApiKey
+  });
 }
 
-export function getLocalConfig(): LocalConfig {
-  const resolved = normalizeConfig(readStoredConfig());
-  const defaultApiBaseUrl = getDefaultApiBaseUrl();
-
+function buildLocalConfigSnapshot(
+  resolved: LocalConfigState,
+  defaultApiBaseUrl: string
+): LocalConfig {
   return {
     ...resolved,
     isUsingDefaults:
       resolved.apiBaseUrl === defaultApiBaseUrl && resolved.apiKey === defaultApiKey,
     wsBaseUrl: buildWsBaseUrl(resolved.apiBaseUrl)
   };
+}
+
+export function getLocalConfig(): LocalConfig {
+  const defaultApiBaseUrl = getDefaultApiBaseUrl();
+  const rawValue = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
+  const cacheKey = getConfigCacheKey(rawValue, defaultApiBaseUrl);
+
+  if (cachedConfigKey === cacheKey && cachedConfigSnapshot !== null) {
+    return cachedConfigSnapshot;
+  }
+
+  const resolved = normalizeConfig(readStoredConfig(rawValue));
+  const snapshot = buildLocalConfigSnapshot(resolved, defaultApiBaseUrl);
+
+  cachedConfigKey = cacheKey;
+  cachedConfigSnapshot = snapshot;
+  return snapshot;
 }
 
 export function saveLocalConfig(value: LocalConfigState): void {
@@ -160,4 +182,8 @@ export function getDefaultLocalConfig(): LocalConfigState {
     apiBaseUrl: getDefaultApiBaseUrl(),
     apiKey: defaultApiKey
   };
+}
+
+export function buildWsBaseUrl(apiBaseUrl: string): string {
+  return normalizeApiBaseUrl(apiBaseUrl).replace(/^http/, "ws").replace(/\/api$/, "");
 }
