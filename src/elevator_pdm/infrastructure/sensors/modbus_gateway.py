@@ -13,20 +13,20 @@ class ModbusGateway(SensorGateway):
     """Reads sensors via RS-485 Modbus RTU using minimalmodbus.
 
     Sensor register map (verify against datasheet before deployment):
-    - ES-VS-01 (vibration, slave 1):
-        Reg 0x00: accel_rms_mg (32-bit float)
-        Reg 0x02: velocity_rms_mms (32-bit float)
-        Reg 0x04: peak_accel_mg (32-bit float)
-        Reg 0x06: temperature_c (32-bit float)
-    - ES35-SW (temp/humidity, slave 2):
-        Reg 0x00: temperature_c (32-bit float)
-        Reg 0x02: humidity_pct (32-bit float)
-    - RW-ST01D (load cell, slave 3):
-        Reg 0x00: load_kg (32-bit float)
     - Elevator controller (slave 1):
         Reg 1047: controller-specific 16-bit value
         Reg 0x2121: controller-specific 16-bit value
         Reg 0x2122: controller-specific 16-bit value
+    - ES-VS-01 (vibration, slave 2):
+        Reg 0x00: accel_rms_mg (32-bit float)
+        Reg 0x02: velocity_rms_mms (32-bit float)
+        Reg 0x04: peak_accel_mg (32-bit float)
+        Reg 0x06: temperature_c (32-bit float)
+    - ES35-SW (temp/humidity, slave 3):
+        Reg 0x00: temperature_c (32-bit float)
+        Reg 0x02: humidity_pct (32-bit float)
+    - RW-ST01D (load cell, slave 4):
+        Reg 0x00: load_kg (32-bit float)
     """
 
     _PARITY_MAP = {
@@ -71,7 +71,7 @@ class ModbusGateway(SensorGateway):
 
     def _read_register(self, instrument: minimalmodbus.Instrument, register: int) -> int:
         """Read a single unsigned holding register."""
-        return instrument.read_register(register, functioncode=3, signed=False)
+        return int(instrument.read_register(register, functioncode=3, signed=False))
 
     def read_vibration(self) -> dict[str, Any]:
         try:
