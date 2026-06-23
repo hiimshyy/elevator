@@ -152,14 +152,14 @@ class ModbusGateway(SensorGateway):
             instrument = self._require_instrument(self._controller, "Controller registers")
             return {
                 "sensor_id": self._settings.controller.sensor_id,
-                "controller_register_1047": self._read_register(
-                    instrument, self._settings.controller.register_1047
+                "controller_reg_current_floor": self._read_register(
+                    instrument, self._settings.controller.regCurrentFloor
                 ),
-                "controller_register_0x2121": self._read_register(
-                    instrument, self._settings.controller.register_0x2121
+                "controller_reg_current": self._read_register(
+                    instrument, self._settings.controller.regCurrent
                 ),
-                "controller_register_0x2122": self._read_register(
-                    instrument, self._settings.controller.register_0x2122
+                "controller_reg_voltage": self._read_register(
+                    instrument, self._settings.controller.regVoltage
                 ),
                 "timestamp": datetime.now(UTC).isoformat(),
             }
