@@ -1,4 +1,5 @@
 """SQLAlchemy ORM models for all 5 tables."""
+
 import uuid
 from datetime import UTC, datetime
 
@@ -54,9 +55,7 @@ class SensorReading(Base):
 
     elevator = relationship("Elevator", back_populates="readings")
 
-    __table_args__ = (
-        Index("idx_readings_elevator_time", "elevator_id", "timestamp"),
-    )
+    __table_args__ = (Index("idx_readings_elevator_time", "elevator_id", "timestamp"),)
 
 
 class InferenceResult(Base):
@@ -136,3 +135,21 @@ class MaintenanceSchedule(Base):
             name="check_status",
         ),
     )
+
+
+class ControllerSnapshotRow(Base):
+    """ORM row for a single controller telemetry snapshot."""
+
+    __tablename__ = "controller_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    elevator_id = Column(String, nullable=False)
+    slave_id = Column(Integer, nullable=False)
+    timestamp = Column(String, nullable=False)  # UTC ISO-8601 ending with "Z"
+    raw_values_json = Column(Text, nullable=False)  # JSON: {address: raw_value}
+    scaled_values_json = Column(Text, nullable=False)  # JSON: {address: scaled_value}
+    error_blocks_json = Column(Text, nullable=False)  # JSON: list of error-block dicts
+    failed_addresses_json = Column(Text, nullable=False)  # JSON: list of failed addresses
+    synced = Column(Integer, default=0)
+
+    __table_args__ = (Index("idx_controller_snapshots_elevator_time", "elevator_id", "timestamp"),)

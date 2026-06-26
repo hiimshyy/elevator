@@ -1,7 +1,14 @@
 """Pydantic response schemas for API."""
+
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from elevator_pdm.domain.entities.controller_snapshot import ControllerSnapshot
 
 
 class HealthCheckResponse(BaseModel):
@@ -102,3 +109,44 @@ class ModelReloadResponse(BaseModel):
     status: str
     model: str
     version: str
+
+
+class ErrorBlockResponse(BaseModel):
+    """Response schema for a single error-history block."""
+
+    index: int
+    values: dict[str, int]  # address serialised as str for JSON compatibility
+
+
+class ControllerSnapshotResponse(BaseModel):
+    """Response schema for a controller telemetry snapshot."""
+
+    id: int | None = None
+    elevator_id: str
+    slave_id: int
+    timestamp: str  # UTC ISO-8601
+    raw_values: dict[str, int]  # address serialised as str
+    scaled_values: dict[str, float]  # address serialised as str
+    error_blocks: list[ErrorBlockResponse]
+    failed_addresses: list[int]
+    synced: int | None = None
+
+    @classmethod
+    def from_domain(cls, snapshot: ControllerSnapshot) -> ControllerSnapshotResponse:
+        """Convert a :class:`ControllerSnapshot` domain entity to this response schema."""
+        return cls(
+            id=snapshot.id,
+            elevator_id=snapshot.elevator_id,
+            slave_id=snapshot.slave_id,
+            timestamp=snapshot.timestamp,
+            raw_values={str(k): v for k, v in snapshot.raw_values.items()},
+            scaled_values={str(k): v for k, v in snapshot.scaled_values.items()},
+            error_blocks=[
+                ErrorBlockResponse(
+                    index=block.index,
+                    values={str(k): v for k, v in block.values.items()},
+                )
+                for block in snapshot.error_blocks
+            ],
+            failed_addresses=list(snapshot.failed_addresses),
+        )

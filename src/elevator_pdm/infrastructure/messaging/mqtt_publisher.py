@@ -150,8 +150,26 @@ class MqttPublisher:
         """
         return self._publish(self._config.topic_r, payload)
 
-    def _publish(self, topic: str, payload: dict[str, Any]) -> bool:
-        """Internal generic publish method."""
+    def publish_controller_snapshot(self, payload: dict[str, Any]) -> bool:
+        """Publishes a flat controller telemetry snapshot to the elevator topic.
+
+        The topic is sourced from ``Settings.controller_telemetry.topic_elevator``
+        at QoS 1.  Returns ``False`` on failure without raising; failures are
+        logged and treated as non-fatal.
+        """
+        topic = self._settings.controller_telemetry.topic_elevator
+        return self._publish(topic, payload, qos=1)
+
+    def _publish(self, topic: str, payload: dict[str, Any], *, qos: int | None = None) -> bool:
+        """Internal generic publish method.
+
+        Args:
+            topic:   MQTT topic to publish to.
+            payload: JSON-serialisable dict to send as the message body.
+            qos:     QoS level override.  When ``None``, falls back to the
+                     value configured in ``Settings.mqtt.qos``.
+        """
+        effective_qos = qos if qos is not None else self._config.qos
         try:
             if not self._ensure_connected():
                 self._enqueue_pending(topic, payload)
@@ -161,7 +179,7 @@ class MqttPublisher:
             self._flush_pending()
             msg_str = json.dumps(payload)
             # paho-mqtt version 2.0+ publish() returns MQTTMessageInfo
-            result = self._client.publish(topic, msg_str, qos=self._config.qos)
+            result = self._client.publish(topic, msg_str, qos=effective_qos)
             result.wait_for_publish(timeout=5.0)
 
             if result.is_published():
