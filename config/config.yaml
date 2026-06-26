@@ -23,10 +23,132 @@ sensors:
 
 controller:
   slave_id: 1
-  register_1047: 1047
-  register_0x2121: 8481
-  register_0x2122: 8482
+  regCurrentFloor: 0x2111
+  regCurrent: 0x2121
+  regVoltage: 0x2122
   sensor_id: CTRL-485-01
+
+# Additive pymodbus-based controller telemetry capability.
+# MQTT broker/credentials are sourced from the `mqtt` section above; do not duplicate them here.
+controller_telemetry:
+  slave_id: 1
+  poll_interval_s: 5
+  topic_elevator: "embody/elevator"
+  serial:
+    port: /dev/ttyUSB0
+    baudrate: 19200
+    bytesize: 8
+    parity: E
+    stopbits: 1
+    timeout_ms: 1000
+  register_map:
+    - { address: 0x2013, key: inside_call, meaning: Inside call }
+    - { address: 0x2017, key: up_call, meaning: Up call }
+    - { address: 0x2021, key: down_call, meaning: Down call }
+    - { address: 0x2100, key: run_number_low, meaning: Run number (low word) }
+    - { address: 0x2101, key: run_number_high, meaning: Run number (high word) }
+    - { address: 0x2110, key: current_height, meaning: Current height }
+    - { address: 0x2111, key: current_floor, meaning: Current floor }
+    - { address: 0x2113, key: floor_reached, meaning: Floor reached }
+    - { address: 0x2114, key: source_voltage, meaning: Source voltage }
+    - { address: 0x2117, key: ctb_input, meaning: CTB input }
+    - { address: 0x2118, key: output_status, meaning: Output status }
+    - { address: 0x2119, key: running_speed, meaning: Running speed }
+    - { address: 0x2120, key: operating_status, meaning: Operating status }
+    - { address: 0x2121, key: current, meaning: Current }
+    - { address: 0x2122, key: voltage, meaning: Voltage }
+    - { address: 0x3000, key: total_error_count, meaning: Total error count }
+    - { address: 0x3001, key: current_error_count, meaning: Current error count }
+    # Error block 1
+    - { address: 0x3002, key: error1_code, meaning: Error 1 error code }
+    - { address: 0x3003, key: error1_year, meaning: Error 1 year }
+    - { address: 0x3004, key: error1_month_day, meaning: Error 1 month/day }
+    - { address: 0x3005, key: error1_hour_min, meaning: Error 1 hour/minute }
+    - { address: 0x3006, key: error1_min_sec, meaning: Error 1 minute/second }
+    - { address: 0x3007, key: error1_floor, meaning: Error 1 floor }
+    - { address: 0x3008, key: error1_input_state_a, meaning: Error 1 input state A }
+    - { address: 0x3009, key: error1_input_state_b, meaning: Error 1 input state B }
+    - { address: 0x3010, key: error1_output_state, meaning: Error 1 output state }
+    - { address: 0x3011, key: error1_speed, meaning: Error 1 speed }
+    - { address: 0x3012, key: error1_position, meaning: Error 1 position }
+    - { address: 0x3013, key: error1_voltage, meaning: Error 1 voltage }
+    - { address: 0x3014, key: error1_current, meaning: Error 1 current }
+    - { address: 0x3015, key: error1_frequency, meaning: Error 1 frequency }
+    # Error block 2
+    - { address: 0x3022, key: error2_code, meaning: Error 2 error code }
+    - { address: 0x3023, key: error2_year, meaning: Error 2 year }
+    - { address: 0x3024, key: error2_month_day, meaning: Error 2 month/day }
+    - { address: 0x3025, key: error2_hour_min, meaning: Error 2 hour/minute }
+    - { address: 0x3026, key: error2_min_sec, meaning: Error 2 minute/second }
+    - { address: 0x3027, key: error2_floor, meaning: Error 2 floor }
+    - { address: 0x3028, key: error2_input_state_a, meaning: Error 2 input state A }
+    - { address: 0x3029, key: error2_input_state_b, meaning: Error 2 input state B }
+    - { address: 0x3030, key: error2_output_state, meaning: Error 2 output state }
+    - { address: 0x3031, key: error2_speed, meaning: Error 2 speed }
+    - { address: 0x3032, key: error2_position, meaning: Error 2 position }
+    - { address: 0x3033, key: error2_voltage, meaning: Error 2 voltage }
+    - { address: 0x3034, key: error2_current, meaning: Error 2 current }
+    - { address: 0x3035, key: error2_frequency, meaning: Error 2 frequency }
+    # Error block 3
+    - { address: 0x3042, key: error3_code, meaning: Error 3 error code }
+    - { address: 0x3043, key: error3_year, meaning: Error 3 year }
+    - { address: 0x3044, key: error3_month_day, meaning: Error 3 month/day }
+    - { address: 0x3045, key: error3_hour_min, meaning: Error 3 hour/minute }
+    - { address: 0x3046, key: error3_min_sec, meaning: Error 3 minute/second }
+    - { address: 0x3047, key: error3_floor, meaning: Error 3 floor }
+    - { address: 0x3048, key: error3_input_state_a, meaning: Error 3 input state A }
+    - { address: 0x3049, key: error3_input_state_b, meaning: Error 3 input state B }
+    - { address: 0x3050, key: error3_output_state, meaning: Error 3 output state }
+    - { address: 0x3051, key: error3_speed, meaning: Error 3 speed }
+    - { address: 0x3052, key: error3_position, meaning: Error 3 position }
+    - { address: 0x3053, key: error3_voltage, meaning: Error 3 voltage }
+    - { address: 0x3054, key: error3_current, meaning: Error 3 current }
+    - { address: 0x3055, key: error3_frequency, meaning: Error 3 frequency }
+    # Error block 4
+    - { address: 0x3062, key: error4_code, meaning: Error 4 error code }
+    - { address: 0x3063, key: error4_year, meaning: Error 4 year }
+    - { address: 0x3064, key: error4_month_day, meaning: Error 4 month/day }
+    - { address: 0x3065, key: error4_hour_min, meaning: Error 4 hour/minute }
+    - { address: 0x3066, key: error4_min_sec, meaning: Error 4 minute/second }
+    - { address: 0x3067, key: error4_floor, meaning: Error 4 floor }
+    - { address: 0x3068, key: error4_input_state_a, meaning: Error 4 input state A }
+    - { address: 0x3069, key: error4_input_state_b, meaning: Error 4 input state B }
+    - { address: 0x3070, key: error4_output_state, meaning: Error 4 output state }
+    - { address: 0x3071, key: error4_speed, meaning: Error 4 speed }
+    - { address: 0x3072, key: error4_position, meaning: Error 4 position }
+    - { address: 0x3073, key: error4_voltage, meaning: Error 4 voltage }
+    - { address: 0x3074, key: error4_current, meaning: Error 4 current }
+    - { address: 0x3075, key: error4_frequency, meaning: Error 4 frequency }
+    # Error block 5
+    - { address: 0x3082, key: error5_code, meaning: Error 5 error code }
+    - { address: 0x3083, key: error5_year, meaning: Error 5 year }
+    - { address: 0x3084, key: error5_month_day, meaning: Error 5 month/day }
+    - { address: 0x3085, key: error5_hour_min, meaning: Error 5 hour/minute }
+    - { address: 0x3086, key: error5_min_sec, meaning: Error 5 minute/second }
+    - { address: 0x3087, key: error5_floor, meaning: Error 5 floor }
+    - { address: 0x3088, key: error5_input_state_a, meaning: Error 5 input state A }
+    - { address: 0x3089, key: error5_input_state_b, meaning: Error 5 input state B }
+    - { address: 0x3090, key: error5_output_state, meaning: Error 5 output state }
+    - { address: 0x3091, key: error5_speed, meaning: Error 5 speed }
+    - { address: 0x3092, key: error5_position, meaning: Error 5 position }
+    - { address: 0x3093, key: error5_voltage, meaning: Error 5 voltage }
+    - { address: 0x3094, key: error5_current, meaning: Error 5 current }
+    - { address: 0x3095, key: error5_frequency, meaning: Error 5 frequency }
+    # Error block 6
+    - { address: 0x3102, key: error6_code, meaning: Error 6 error code }
+    - { address: 0x3103, key: error6_year, meaning: Error 6 year }
+    - { address: 0x3104, key: error6_month_day, meaning: Error 6 month/day }
+    - { address: 0x3105, key: error6_hour_min, meaning: Error 6 hour/minute }
+    - { address: 0x3106, key: error6_min_sec, meaning: Error 6 minute/second }
+    - { address: 0x3107, key: error6_floor, meaning: Error 6 floor }
+    - { address: 0x3108, key: error6_input_state_a, meaning: Error 6 input state A }
+    - { address: 0x3109, key: error6_input_state_b, meaning: Error 6 input state B }
+    - { address: 0x3110, key: error6_output_state, meaning: Error 6 output state }
+    - { address: 0x3111, key: error6_speed, meaning: Error 6 speed }
+    - { address: 0x3112, key: error6_position, meaning: Error 6 position }
+    - { address: 0x3113, key: error6_voltage, meaning: Error 6 voltage }
+    - { address: 0x3114, key: error6_current, meaning: Error 6 current }
+    - { address: 0x3115, key: error6_frequency, meaning: Error 6 frequency }
 
 elevator:
   id: elev-001

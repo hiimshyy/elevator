@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources import YamlConfigSettingsSource
 
@@ -160,6 +160,102 @@ class ControllerConfig(BaseModel):
     sensor_id: str = "CTRL-485-01"
 
 
+class ControllerSerialConfig(BaseModel):
+    """Serial profile for the pymodbus-based controller telemetry gateway."""
+
+    port: str = "/dev/ttyUSB0"
+    baudrate: int = 19200
+    bytesize: int = 8
+    parity: str = "E"
+    stopbits: int = 1
+    timeout_ms: int = 1000  # clamped to [100, 10000] at poll time (R1.6)
+
+
+class RegisterEntryConfig(BaseModel):
+    """A single controller holding-register definition sourced from Settings."""
+
+    address: int
+    key: str
+    meaning: str = ""
+    base: int = 10  # display radix: 10 or 16
+    scale: str = ""  # e.g. "/10", "/100" ("" = raw)
+    unit: str = ""
+
+
+# Offsets (relative to each error block's base address) and key/meaning suffixes
+# for the six error-history blocks. Mirrors the legacy controller register layout.
+_ERROR_BLOCK_FIELDS: tuple[tuple[int, str, str], ...] = (
+    (0x00, "code", "error code"),
+    (0x01, "year", "year"),
+    (0x02, "month_day", "month/day"),
+    (0x03, "hour_min", "hour/minute"),
+    (0x04, "min_sec", "minute/second"),
+    (0x05, "floor", "floor"),
+    (0x06, "input_state_a", "input state A"),
+    (0x07, "input_state_b", "input state B"),
+    (0x0E, "output_state", "output state"),
+    (0x0F, "speed", "speed"),
+    (0x10, "position", "position"),
+    (0x11, "voltage", "voltage"),
+    (0x12, "current", "current"),
+    (0x13, "frequency", "frequency"),
+)
+
+
+def _default_register_map() -> list[RegisterEntryConfig]:
+    """Seed the controller register map from the proven controller register layout.
+
+    Covers the status/call, run counters, position, signals, speed/electrical
+    registers and the six error-history blocks. Addresses mirror the legacy
+    ``controller`` config so behavior matches the validated field layout.
+    """
+    entries: list[RegisterEntryConfig] = [
+        RegisterEntryConfig(address=0x2013, key="inside_call", meaning="Inside call"),
+        RegisterEntryConfig(address=0x2017, key="up_call", meaning="Up call"),
+        RegisterEntryConfig(address=0x2021, key="down_call", meaning="Down call"),
+        RegisterEntryConfig(address=0x2100, key="run_number_low", meaning="Run number (low word)"),
+        RegisterEntryConfig(
+            address=0x2101, key="run_number_high", meaning="Run number (high word)"
+        ),
+        RegisterEntryConfig(address=0x2110, key="current_height", meaning="Current height"),
+        RegisterEntryConfig(address=0x2111, key="current_floor", meaning="Current floor"),
+        RegisterEntryConfig(address=0x2113, key="floor_reached", meaning="Floor reached"),
+        RegisterEntryConfig(address=0x2114, key="source_voltage", meaning="Source voltage"),
+        RegisterEntryConfig(address=0x2117, key="ctb_input", meaning="CTB input"),
+        RegisterEntryConfig(address=0x2118, key="output_status", meaning="Output status"),
+        RegisterEntryConfig(address=0x2119, key="running_speed", meaning="Running speed"),
+        RegisterEntryConfig(address=0x2120, key="operating_status", meaning="Operating status"),
+        RegisterEntryConfig(address=0x2121, key="current", meaning="Current"),
+        RegisterEntryConfig(address=0x2122, key="voltage", meaning="Voltage"),
+        RegisterEntryConfig(address=0x3000, key="total_error_count", meaning="Total error count"),
+        RegisterEntryConfig(
+            address=0x3001, key="current_error_count", meaning="Current error count"
+        ),
+    ]
+    # Six error-history blocks; block N base address steps by 0x20 from 0x3002.
+    for block in range(1, 7):
+        base_address = 0x3002 + (block - 1) * 0x20
+        for offset, suffix, label in _ERROR_BLOCK_FIELDS:
+            entries.append(
+                RegisterEntryConfig(
+                    address=base_address + offset,
+                    key=f"error{block}_{suffix}",
+                    meaning=f"Error {block} {label}",
+                )
+            )
+    return entries
+
+
+class ControllerTelemetryConfig(BaseModel):
+    """Configuration for the additive pymodbus controller telemetry capability."""
+
+    slave_id: int = 1  # validated 1..247 at poll time
+    poll_interval_s: int = 5  # default 5s (R9.2)
+    topic_elevator: str = "embody/elevator"
+    serial: ControllerSerialConfig = ControllerSerialConfig()
+    register_map: list[RegisterEntryConfig] = Field(default_factory=_default_register_map)
+
+
 class ElevatorConfig(BaseModel):
     id: str = "elev-001"
     max_capacity_kg: int = 1000
@@ -215,6 +311,7 @@ class Settings(BaseSettings):
     serial: SerialConfig = SerialConfig()
     sensors: SensorsConfig = SensorsConfig()
     controller: ControllerConfig = ControllerConfig()
+    controller_telemetry: ControllerTelemetryConfig = ControllerTelemetryConfig()
     elevator: ElevatorConfig = ElevatorConfig()
     thresholds: ThresholdsConfig = ThresholdsConfig()
     models: ModelsConfig = ModelsConfig()

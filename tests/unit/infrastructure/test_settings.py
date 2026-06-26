@@ -20,9 +20,9 @@ def test_loads_from_config_yaml():
     assert settings.sensors.temp_humid.slave_id == 2
     assert settings.sensors.load.slave_id == 3
     assert settings.controller.slave_id == 1
-    assert settings.controller.register_1047 == 1047
-    assert settings.controller.register_0x2121 == 0x2121
-    assert settings.controller.register_0x2122 == 0x2122
+    assert settings.controller.regCurrentFloor == 0x2111
+    assert settings.controller.regCurrent == 0x2121
+    assert settings.controller.regVoltage == 0x2122
     assert settings.thresholds.accel_rms_warning_mg == 80
     assert settings.thresholds.accel_rms_critical_mg == 150
     assert settings.elevator.max_capacity_kg == 1000

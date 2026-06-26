@@ -85,10 +85,10 @@ def test_read_controller_reads_requested_registers(instrument_instances):
     result = gw.read_controller()
 
     assert result["sensor_id"] == "CTRL-485-01"
-    assert result["controller_register_1047"] == 100
-    assert result["controller_register_0x2121"] == 200
-    assert result["controller_register_0x2122"] == 201
-    controller.read_register.assert_any_call(1047, functioncode=3, signed=False)
+    assert result["controller_reg_current_floor"] == 100
+    assert result["controller_reg_current"] == 200
+    assert result["controller_reg_voltage"] == 201
+    controller.read_register.assert_any_call(0x2111, functioncode=3, signed=False)
     controller.read_register.assert_any_call(0x2121, functioncode=3, signed=False)
     controller.read_register.assert_any_call(0x2122, functioncode=3, signed=False)
 
@@ -128,6 +128,6 @@ def test_can_create_controller_only_gateway(instrument_instances):
     result = gw.read_controller()
 
     assert mock_cls.call_count == 1
-    assert result["controller_register_1047"] == 100
-    assert result["controller_register_0x2121"] == 200
-    assert result["controller_register_0x2122"] == 201
+    assert result["controller_reg_current_floor"] == 100
+    assert result["controller_reg_current"] == 200
+    assert result["controller_reg_voltage"] == 201
