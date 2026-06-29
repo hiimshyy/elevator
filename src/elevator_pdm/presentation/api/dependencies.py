@@ -11,6 +11,9 @@ from elevator_pdm.infrastructure.config.settings import Settings
 from elevator_pdm.infrastructure.ml.onnx_runtime import OnnxRuntime
 from elevator_pdm.infrastructure.persistence.database import create_engine_and_session
 from elevator_pdm.infrastructure.persistence.sqlite_alert_repo import SQLiteAlertRepo
+from elevator_pdm.infrastructure.persistence.sqlite_controller_snapshot_repo import (
+    SQLiteControllerSnapshotRepo,
+)
 from elevator_pdm.infrastructure.persistence.sqlite_elevator_repo import SQLiteElevatorRepo
 from elevator_pdm.infrastructure.persistence.sqlite_inference_repo import SQLiteInferenceRepo
 from elevator_pdm.infrastructure.persistence.sqlite_maintenance_repo import SQLiteMaintenanceRepo
@@ -95,6 +98,13 @@ def get_maintenance_repository(
 ) -> SQLiteMaintenanceRepo:
     """Wire MaintenanceRepository implementation."""
     return SQLiteMaintenanceRepo(session)
+
+
+def get_controller_snapshot_repository(
+    session: Session = Depends(get_db_session),
+) -> SQLiteControllerSnapshotRepo:
+    """Wire ControllerSnapshotRepository implementation."""
+    return SQLiteControllerSnapshotRepo(session)
 
 
 def get_sensor_gateway() -> MockGateway:

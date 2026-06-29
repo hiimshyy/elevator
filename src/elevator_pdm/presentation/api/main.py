@@ -14,6 +14,7 @@ from elevator_pdm.presentation.api.auth import verify_api_key
 from elevator_pdm.presentation.api.dependencies import get_db_engine
 from elevator_pdm.presentation.api.routers import (
     alerts_router,
+    controller_router,
     elevators_router,
     health_router,
     maintenance_router,
@@ -64,6 +65,12 @@ def create_app() -> FastAPI:
     api_key_dep = Depends(verify_api_key)
 
     # Register routers
+    app.include_router(
+        controller_router,
+        prefix="/api/elevators",
+        tags=["controller"],
+        dependencies=[api_key_dep],
+    )
     app.include_router(
         elevators_router,
         prefix="/api/elevators",
