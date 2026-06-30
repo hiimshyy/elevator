@@ -1,0 +1,121 @@
+/* =============================================================================
+   DataState — Elevator PDM Operations Console
+   Requirements: 3.8, 7.1, 7.3, 7.4
+
+   All visual values reference tokens defined in styles/tokens.css. No
+   hard-coded color literals appear in this file (enforced by
+   tokenUsageEnforcement.test.ts). The spinner animation duration is fixed
+   (not exposed through tokens) because a loading spinner is non-essential
+   motion that is suppressed entirely under prefers-reduced-motion (Req 6.10).
+   ============================================================================= */
+
+.data-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  margin: 0;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
+  text-align: center;
+}
+
+.data-state__message {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.data-state__detail {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   Spinner — visible non-color loading signal, paired with the polite
+   announcement made by the component on transition into loading.
+   --------------------------------------------------------------------------- */
+.data-state__spinner {
+  width: var(--space-7);
+  height: var(--space-7);
+  border-radius: var(--radius-pill);
+  border: var(--space-1) solid var(--color-border);
+  border-top-color: var(--color-accent);
+  animation: data-state-spin 1s linear infinite;
+}
+
+@keyframes data-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Suppress the rotation under reduced-motion. The spinner remains visible
+   as a static ring; loading state is still conveyed by the visible message
+   and the polite live-region announcement. */
+@media (prefers-reduced-motion: reduce) {
+  .data-state__spinner {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Retry control — token-driven button. A fully-fledged Button primitive is
+   implemented in sibling task 9.1; DataState falls back to a styled
+   <button> so this component is usable standalone.
+   --------------------------------------------------------------------------- */
+.data-state__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;        /* WCAG 2.5.5 minimum touch target (Req 6.5) */
+  min-height: 44px;       /* WCAG 2.5.5 minimum touch target (Req 6.5) */
+  padding: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: filter var(--motion-fast) var(--easing-default);
+}
+
+.data-state__retry:hover {
+  filter: brightness(0.95);
+}
+
+.data-state__retry:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   State-specific accent — uses status tokens so the error variant gets a
+   recognisable critical-state surface without restating any colour literal.
+   --------------------------------------------------------------------------- */
+.data-state--error {
+  background: var(--color-status-critical);
+  border-color: var(--color-status-critical-solid);
+  color: var(--color-status-critical-on);
+}
+
+.data-state--error .data-state__detail {
+  color: var(--color-status-critical-on);
+}
+
+.data-state--empty {
+  background: var(--color-surface);
+}

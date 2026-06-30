@@ -1,0 +1,112 @@
+/* =============================================================================
+   StatusBadge — token-driven status indicator
+   Validates: Requirements 3.6, 3.7, 3.8, 6.3
+
+   Each state combines four orthogonal visual signals:
+     - color  (background + text via --color-status-* tokens)
+     - icon   (unicode glyph rendered in markup)
+     - label  (visible text rendered in markup)
+     - shape  (outline applied below — pill / triangle / diamond / square)
+
+   All values reference design tokens; no hard-coded color or font literals
+   appear in this file (enforced by tokenUsageEnforcement.test.ts).
+   ============================================================================= */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+
+  /* Default outline — shape modifiers below override border-radius / clip-path. */
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+
+  /* Theme transitions collapse to 0ms under prefers-reduced-motion via tokens. */
+  transition:
+    background-color var(--motion-fast) var(--easing-default),
+    color var(--motion-fast) var(--easing-default),
+    border-color var(--motion-fast) var(--easing-default);
+
+  user-select: none;
+}
+
+.status-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-md);
+  line-height: 1;
+}
+
+.status-badge__label {
+  display: inline-block;
+}
+
+/* ---------------------------------------------------------------------------
+   State color tokens
+   --------------------------------------------------------------------------- */
+.status-badge--state-healthy {
+  background-color: var(--color-status-healthy);
+  color: var(--color-status-healthy-on);
+  border-color: var(--color-status-healthy-solid);
+}
+
+.status-badge--state-warning {
+  background-color: var(--color-status-warning);
+  color: var(--color-status-warning-on);
+  border-color: var(--color-status-warning-solid);
+}
+
+.status-badge--state-critical {
+  background-color: var(--color-status-critical);
+  color: var(--color-status-critical-on);
+  border-color: var(--color-status-critical-solid);
+}
+
+.status-badge--state-unknown {
+  background-color: var(--color-status-unknown);
+  color: var(--color-status-unknown-on);
+  border-color: var(--color-status-unknown-solid);
+}
+
+/* ---------------------------------------------------------------------------
+   Shape modifiers — each state's outline differs in addition to color.
+   --------------------------------------------------------------------------- */
+
+/* Pill — fully rounded ends (healthy). */
+.status-badge--shape-pill {
+  border-radius: var(--radius-pill);
+}
+
+/* Square — small radius, distinctly rectangular (unknown). */
+.status-badge--shape-square {
+  border-radius: var(--radius-sm);
+}
+
+/* Triangle — clip the outline into an upward-pointing triangle (warning).
+   Extra top padding keeps the label below the apex so it remains legible. */
+.status-badge--shape-triangle {
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  border-radius: 0;
+  padding-top: var(--space-6);
+  padding-inline: var(--space-5);
+}
+
+/* Diamond — clip the outline into a four-point diamond (critical).
+   Extra horizontal padding keeps the label inside the side points. */
+.status-badge--shape-diamond {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  border-radius: 0;
+  padding-inline: var(--space-6);
+  padding-block: var(--space-3);
+}

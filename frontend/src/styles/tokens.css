@@ -1,0 +1,174 @@
+/* =============================================================================
+   Design Tokens — Elevator PDM Operations Console
+   Single source of truth for all visual values.
+   Requirements: 3.1, 3.2, 3.4, 3.5, 6.10
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Light theme (default)
+   All tokens resolve to exactly one value per active theme (Req 3.2).
+   --------------------------------------------------------------------------- */
+:root {
+  /* -------------------------------------------------------------------------
+     Color — base palette
+     Harmonised with existing index.css values (teal/dark-teal family).
+     WCAG AA: --color-text on --color-bg ≈ 11:1  (Req 6.1, 8.8)
+     ------------------------------------------------------------------------- */
+  --color-bg:            #f3f7f7;          /* matches existing gradient end    */
+  --color-surface:       rgba(255, 255, 255, 0.9);
+  --color-text:          #102126;          /* existing :root color             */
+  --color-text-muted:    #49656d;          /* from .toolbar__meta              */
+  --color-border:        rgba(16, 33, 38, 0.1);
+  /* Darkened from #0b8793 to clear WCAG AA 4.5:1 against --color-accent-on
+     (white) and --color-bg (#f3f7f7) per Property 6 / Req 6.1, 8.8.
+     With #0b8793 the primary Button label (white-on-accent) only reached
+     4.285:1 and the DataState retry label (bg-on-accent) only 3.970:1.
+     #076b75 yields 6.23:1 vs white and 5.78:1 vs --color-bg while
+     preserving the teal hue family (HSL hue ~185°, similar saturation). */
+  --color-accent:        #076b75;          /* radial-gradient accent colour    */
+  --color-accent-on:     #ffffff;          /* on-accent text (>= 4.5:1)        */
+
+  /* Color — status (Req 3.6, 3.7)
+     WCAG AA 3:1 minimum for graphical elements (Req 6.2).
+     Each pairing: on-status text on status-bg meets 4.5:1 for text labels.  */
+  --color-status-healthy:         rgba(49, 125, 89, 0.12);
+  --color-status-healthy-solid:   #1f6a49;
+  --color-status-healthy-on:      #0f3d28;
+
+  --color-status-warning:         rgba(184, 122, 16, 0.14);
+  --color-status-warning-solid:   #8a5f0b;
+  --color-status-warning-on:      #4a3205;
+
+  --color-status-critical:        rgba(167, 42, 42, 0.14);
+  --color-status-critical-solid:  #922a2a;
+  --color-status-critical-on:     #5a1111;
+
+  --color-status-unknown:         rgba(90, 103, 108, 0.14);
+  --color-status-unknown-solid:   #4a5d63;
+  --color-status-unknown-on:      #2a3d42;
+
+  /* -------------------------------------------------------------------------
+     Typography
+     Font family + scale of 6 named steps (>= 5 required, Req 3.4).
+     --------------------------------------------------------------------------- */
+  --font-family-base:    "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-family-mono:    "Cascadia Code", "Consolas", monospace;
+
+  --font-size-xs:   0.72rem;   /*  ~11.5px — eyebrow labels               */
+  --font-size-sm:   0.82rem;   /*  ~13.1px — captions, meta               */
+  --font-size-md:   0.92rem;   /*  ~14.7px — body, default                */
+  --font-size-base: 1rem;      /*   16px   — base reference               */
+  --font-size-lg:   1.125rem;  /*   18px   — sub-headings                 */
+  --font-size-xl:   1.35rem;   /*  ~21.6px — card headings                */
+  --font-size-2xl:  1.8rem;    /*  ~28.8px — summary-card numbers         */
+
+  --font-weight-regular: 400;
+  --font-weight-bold:    700;
+
+  --line-height-base:    1.5;
+  --line-height-tight:   1.2;
+
+  /* -------------------------------------------------------------------------
+     Spacing scale — 8 steps (>= 6 required, Req 3.5)
+     Based on a 4px base unit scaled for the existing 16px root font.
+     --------------------------------------------------------------------------- */
+  --space-1:  0.25rem;   /*  4px  */
+  --space-2:  0.5rem;    /*  8px  */
+  --space-3:  0.75rem;   /* 12px  */
+  --space-4:  1rem;      /* 16px  */
+  --space-5:  1.25rem;   /* 20px  */
+  --space-6:  1.5rem;    /* 24px  */
+  --space-7:  2rem;      /* 32px  */
+  --space-8:  2.5rem;    /* 40px  */
+
+  /* -------------------------------------------------------------------------
+     Border-radius
+     --------------------------------------------------------------------------- */
+  --radius-sm:   0.5rem;    /*  8px  — small controls, tags               */
+  --radius-md:   0.95rem;   /* ~15px — buttons, inputs, callouts          */
+  --radius-lg:   1.35rem;   /* ~22px — cards, panels, fleet-cards         */
+  --radius-pill: 999px;     /* fully rounded — badges, pills              */
+
+  /* -------------------------------------------------------------------------
+     Sizing — border widths and accessibility minimums
+     --------------------------------------------------------------------------- */
+  --border-width-thin:      1px;        /* hairline borders                  */
+  --border-width-focus:     2px;        /* focus-ring outline width          */
+  --size-touch-target-min:  2.75rem;    /* 44px — WCAG 2.5.5 (Req 6.5)       */
+
+  /* -------------------------------------------------------------------------
+     Elevation — box-shadow tokens (light theme)
+     Override under [data-theme="dark"] below.
+     --------------------------------------------------------------------------- */
+  --elevation-1: 0 2px 8px rgba(33, 70, 80, 0.06);
+  --elevation-2: 0 18px 38px rgba(33, 70, 80, 0.08);
+  --elevation-3: 0 24px 48px rgba(33, 70, 80, 0.14);
+
+  /* -------------------------------------------------------------------------
+     Motion — duration and easing tokens
+     Wrapped in a prefers-reduced-motion guard below (Req 6.10).
+     --------------------------------------------------------------------------- */
+  --motion-fast:      120ms;
+  --motion-base:      250ms;
+  --motion-emphasis:  400ms;
+
+  --easing-default:   ease;
+  --easing-spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
+  --easing-out:       cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------------------------------------------------------------------------
+   Dark theme overrides — color and elevation only (Req 8.1)
+   Applied when [data-theme="dark"] is set on <html> by ThemeProvider.
+   WCAG AA contrast maintained in dark theme (Req 8.8).
+   --------------------------------------------------------------------------- */
+[data-theme="dark"] {
+  /* Color — base palette (dark) */
+  --color-bg:            #0d1e22;
+  --color-surface:       rgba(22, 42, 49, 0.96);
+  --color-text:          #e8f3f2;
+  --color-text-muted:    #7fa8b2;
+  --color-border:        rgba(135, 228, 219, 0.14);
+  --color-accent:        #44c8c0;
+  --color-accent-on:     #0d1e22;          /* on-accent text in dark theme   */
+
+  /* Color — status (dark)
+     On-status text lightened to maintain 4.5:1 contrast on dark surfaces.   */
+  --color-status-healthy:         rgba(49, 125, 89, 0.22);
+  --color-status-healthy-solid:   #5dcf8a;
+  --color-status-healthy-on:      #c8fce4;
+
+  --color-status-warning:         rgba(217, 158, 40, 0.22);
+  --color-status-warning-solid:   #e0a832;
+  --color-status-warning-on:      #fff0c0;
+
+  --color-status-critical:        rgba(220, 70, 70, 0.22);
+  --color-status-critical-solid:  #f07070;
+  --color-status-critical-on:     #ffe4e4;
+
+  --color-status-unknown:         rgba(120, 140, 148, 0.22);
+  --color-status-unknown-solid:   #8daab4;
+  --color-status-unknown-on:      #ddeef2;
+
+  /* Elevation — dark theme uses dark ambient shadows with subtle glow */
+  --elevation-1: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --elevation-2: 0 18px 38px rgba(0, 0, 0, 0.36);
+  --elevation-3: 0 24px 48px rgba(0, 0, 0, 0.48);
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced-motion — collapse all motion tokens to zero / none (Req 6.10)
+   Non-essential animations are disabled; state-conveying transitions may
+   still use instantaneous (0ms) transitions to apply visual changes.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast:     0ms;
+    --motion-base:     0ms;
+    --motion-emphasis: 0ms;
+
+    --easing-default:  linear;
+    --easing-spring:   linear;
+    --easing-out:      linear;
+  }
+}
