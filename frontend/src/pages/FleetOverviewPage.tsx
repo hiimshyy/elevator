@@ -1,36 +1,60 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { ElevatorSummary, listElevators } from "../lib/api";
+import { PageContainer, ResponsiveGrid } from "../components/layout/PageContainer";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { DataState } from "../components/ui/DataState";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { mapElevatorStatusToState } from "../components/ui/statusState";
+import { listElevators, type ElevatorSummary } from "../lib/api";
 import { useLocalConfig } from "../lib/localConfig";
+import { useViewState } from "../lib/viewState";
 
-const refreshIntervalMs = 10_000;
+// =============================================================================
+// Fleet Overview route — refactored to consume the redesigned UI primitives.
+//
+// Requirements covered:
+//   - 3.3 : presentation references Design_Token entries (via primitives that
+//           are 100% token-driven) instead of hard-coded literals.
+//   - 3.8 : route consumes the reusable Card / StatusBadge / Button / DataState
+//           primitives provided by the Design_System.
+//   - 4.1 : single-column layout at Mobile (PageContainer + ResponsiveGrid
+//           derive their column count from useBreakpoint()'s descriptor).
+//   - 4.2 : at most two columns at Tablet (same descriptor; tablet
+//           columnCount = 2).
+//   - 6.3 : every Status_Indicator (elevator status pill, top-of-page summary
+//           pill) is rendered through StatusBadge, which conveys state with
+//           color + icon + label + shape.
+//   - 7.1 : loading indicator surfaced via DataState within 300ms — the
+//           timing guarantee is owned by useViewState's loading-indicator
+//           grace window.
+//   - 7.3 : empty state names the missing data ("elevators") via DataState.
+//   - 7.4 : error state names the view + reason and presents a Retry control
+//           via DataState; prior data is preserved by useViewState's
+//           failError transition.
+//   - 7.8 : no internal endpoint URLs appear in this route — the legacy
+//           "Data source" card that surfaced the API base URL has been
+//           removed. Endpoint URLs are confined to the Local Config route.
+// =============================================================================
 
-function getStatusTone(elevator: ElevatorSummary): string {
-  if (elevator.status === "CRITICAL" || elevator.status === "OVERLOAD") {
-    return "status-badge status-badge--critical";
-  }
+/** Human-readable label used in announcements, error messages, and headings. */
+const VIEW_LABEL = "Fleet Overview";
 
-  if (elevator.status === "WARNING") {
-    return "status-badge status-badge--warning";
-  }
-
-  if ((elevator.latest_health_score ?? 100) >= 80) {
-    return "status-badge status-badge--healthy";
-  }
-
-  if ((elevator.latest_health_score ?? 100) >= 50) {
-    return "status-badge status-badge--warning";
-  }
-
-  return "status-badge status-badge--critical";
-}
+/** Periodic background-refresh interval, kept consistent with prior UX. */
+const REFRESH_INTERVAL_MS = 10_000;
 
 function formatHealthScore(score: number | null): string {
-  return typeof score === "number" && Number.isFinite(score) ? `${score.toFixed(1)} / 100` : "N/A";
+  return typeof score === "number" && Number.isFinite(score)
+    ? `${score.toFixed(1)} / 100`
+    : "N/A";
 }
 
-function formatTimestamp(value: string): string {
+function formatTimestamp(value: string | null): string {
+  if (value === null) {
+    return "No successful refresh yet";
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "N/A";
@@ -38,7 +62,7 @@ function formatTimestamp(value: string): string {
 
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -46,134 +70,210 @@ function formatCapacity(value: number): string {
   return Number.isFinite(value) ? `${value.toFixed(0)} kg` : "N/A";
 }
 
+/**
+ * Derive the StatusBadge state for the page-level summary pill from the
+ * current view-data state. Uses the canonical four-state mapper so the
+ * summary pill differs by icon + label + shape (Req 6.3), not only color.
+ */
+function summaryBadgeState(
+  state: "loading" | "empty" | "error" | "populated",
+  hasPriorData: boolean,
+): "healthy" | "warning" | "critical" | "unknown" {
+  if (state === "error") {
+    return hasPriorData ? "warning" : "critical";
+  }
+  if (state === "empty") {
+    return "unknown";
+  }
+  if (state === "loading" && !hasPriorData) {
+    return "unknown";
+  }
+  return "healthy";
+}
+
+function summaryBadgeLabel(
+  state: "loading" | "empty" | "error" | "populated",
+  count: number,
+  hasPriorData: boolean,
+): string {
+  if (state === "loading" && !hasPriorData) {
+    return "Loading fleet…";
+  }
+  if (state === "error" && !hasPriorData) {
+    return "Fleet load failed";
+  }
+  if (state === "error") {
+    return `Stale data (${count} elevator${count === 1 ? "" : "s"})`;
+  }
+  if (state === "empty") {
+    return "No elevators registered";
+  }
+  return `${count} elevator${count === 1 ? "" : "s"} loaded`;
+}
+
 export function FleetOverviewPage(): JSX.Element {
   const { apiBaseUrl, apiKey } = useLocalConfig();
-  const [elevators, setElevators] = useState<ElevatorSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const navigate = useNavigate();
 
+  // Periodic background refresh — a tick state increments every
+  // REFRESH_INTERVAL_MS and is included in useViewState's deps, which
+  // re-runs the fetcher on each tick. The hook owns abort / supersede
+  // semantics so the previous request is cancelled before each new one.
+  const [refreshTick, setRefreshTick] = useState(0);
   useEffect(() => {
-    let isMounted = true;
-
-    const load = async (signal?: AbortSignal): Promise<void> => {
-      try {
-        const nextElevators = await listElevators(signal);
-        if (!isMounted) {
-          return;
-        }
-
-        setElevators(nextElevators);
-        setError(null);
-        setLastUpdatedAt(new Date().toISOString());
-      } catch (nextError) {
-        if (!isMounted || signal?.aborted) {
-          return;
-        }
-
-        setError(nextError instanceof Error ? nextError.message : "Unknown error");
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    const controller = new AbortController();
-    void load(controller.signal);
-
-    const intervalId = window.setInterval(() => {
-      const intervalController = new AbortController();
-      void load(intervalController.signal);
-      window.setTimeout(() => intervalController.abort(), refreshIntervalMs - 1_000);
-    }, refreshIntervalMs);
-
+    const id = window.setInterval(() => {
+      setRefreshTick((prev) => prev + 1);
+    }, REFRESH_INTERVAL_MS);
     return () => {
-      isMounted = false;
-      controller.abort();
-      window.clearInterval(intervalId);
+      window.clearInterval(id);
     };
-  }, [apiBaseUrl, apiKey]);
+  }, []);
 
-  const summaryLabel = useMemo(() => {
-    if (isLoading) {
-      return "Loading fleet data";
-    }
+  const fleet = useViewState<ElevatorSummary[]>({
+    viewLabel: VIEW_LABEL,
+    fetcher: (signal) => listElevators(signal),
+    isEmpty: (rows) => rows.length === 0,
+    // apiBaseUrl / apiKey are part of deps so Local Config changes refresh
+    // the view; refreshTick drives the periodic background refresh.
+    deps: [apiBaseUrl, apiKey, refreshTick],
+  });
 
-    if (error) {
-      return "API request failed";
-    }
+  const elevators = fleet.data ?? [];
+  const hasPriorData = elevators.length > 0;
 
-    return `${elevators.length} elevator${elevators.length === 1 ? "" : "s"} loaded`;
-  }, [elevators.length, error, isLoading]);
+  // -------------------------------------------------------------------------
+  // Body branching — DataState owns loading / empty / error presentations
+  // -------------------------------------------------------------------------
+  let body: JSX.Element | null = null;
+
+  if (fleet.state === "loading" && !hasPriorData) {
+    // Suppress the spinner for sub-300ms requests via showLoadingIndicator,
+    // which useViewState flips to true once the 300ms grace elapses
+    // (Requirement 7.1).
+    body = fleet.showLoadingIndicator ? (
+      <DataState state="loading" viewLabel={VIEW_LABEL} />
+    ) : null;
+  } else if (fleet.state === "error" && !hasPriorData) {
+    body = (
+      <DataState
+        state="error"
+        viewLabel={VIEW_LABEL}
+        errorReason={fleet.error ?? undefined}
+        onRetry={fleet.retry}
+      />
+    );
+  } else if (fleet.state === "empty") {
+    // Requirement 7.3: empty state names the missing data noun.
+    body = (
+      <DataState
+        state="empty"
+        viewLabel={VIEW_LABEL}
+        missingDataLabel="elevators"
+      />
+    );
+  } else {
+    // "populated", or "loading" / "error" with prior data preserved.
+    body = (
+      <>
+        {/* Requirement 7.4: a failed refresh keeps the previously loaded
+            cards visible and surfaces an error banner with a Retry control. */}
+        {fleet.state === "error" ? (
+          <DataState
+            state="error"
+            viewLabel={VIEW_LABEL}
+            errorReason={fleet.error ?? undefined}
+            onRetry={fleet.retry}
+          />
+        ) : null}
+
+        <ResponsiveGrid aria-label="Elevator fleet">
+          {elevators.map((elevator) => {
+            const badgeState = mapElevatorStatusToState(
+              elevator.status,
+              elevator.latest_health_score,
+            );
+
+            return (
+              <Card
+                key={elevator.id}
+                elevation="raised"
+                header={
+                  <>
+                    <div>
+                      <span className="page__eyebrow">Elevator</span>
+                      <h3 className="ui-card__title">{elevator.id}</h3>
+                    </div>
+                    <StatusBadge state={badgeState} />
+                  </>
+                }
+                footer={
+                  <Button
+                    variant="primary"
+                    onClick={() =>
+                      navigate(
+                        `/live?elevator=${encodeURIComponent(elevator.id)}`,
+                      )
+                    }
+                  >
+                    Open Live Monitor
+                  </Button>
+                }
+              >
+                <dl className="metric-list">
+                  <div>
+                    <dt>Health score</dt>
+                    <dd>{formatHealthScore(elevator.latest_health_score)}</dd>
+                  </div>
+                  <div>
+                    <dt>Capacity</dt>
+                    <dd>{formatCapacity(elevator.max_capacity_kg)}</dd>
+                  </div>
+                  <div>
+                    <dt>Created</dt>
+                    <dd>{formatTimestamp(elevator.created_at)}</dd>
+                  </div>
+                </dl>
+              </Card>
+            );
+          })}
+        </ResponsiveGrid>
+      </>
+    );
+  }
 
   return (
-    <section className="page">
+    <PageContainer>
       <header className="page__header">
         <div>
           <span className="page__eyebrow">Route</span>
           <h2>Fleet Overview</h2>
         </div>
-        <div className="status-pill">{summaryLabel}</div>
+        <StatusBadge
+          state={summaryBadgeState(fleet.state, hasPriorData)}
+          labelOverride={summaryBadgeLabel(
+            fleet.state,
+            elevators.length,
+            hasPriorData,
+          )}
+        />
       </header>
 
-      <div className="card-grid">
-        <article className="card">
-          <h3>Data source</h3>
+      {/* Top-of-page meta cards — limited to two columns so the row stays
+          legible at Tablet and never exceeds Requirement 4.2's two-column
+          cap. The "Data source" card that previously surfaced the API base
+          URL has been removed to satisfy Requirement 7.8. */}
+      <ResponsiveGrid maxColumns={2}>
+        <Card title="Last refresh" headingLevel={3} elevation="flat">
+          <p>{formatTimestamp(fleet.lastUpdatedAt)}</p>
+        </Card>
+        <Card title="Refresh cadence" headingLevel={3} elevation="flat">
           <p>
-            Fleet data is loaded from <code>{apiBaseUrl}/elevators</code> and refreshed every{" "}
-            {refreshIntervalMs / 1000} seconds.
+            Fleet data refreshes every {REFRESH_INTERVAL_MS / 1000} seconds.
           </p>
-        </article>
-        <article className="card">
-          <h3>Last refresh</h3>
-          <p>{lastUpdatedAt ? formatTimestamp(lastUpdatedAt) : "No successful refresh yet"}</p>
-        </article>
-      </div>
+        </Card>
+      </ResponsiveGrid>
 
-      {error ? <div className="callout callout--error">Unable to load fleet data. {error}</div> : null}
-
-      {isLoading ? <div className="callout">Loading elevator summaries...</div> : null}
-
-      {!isLoading && !error && elevators.length === 0 ? (
-        <div className="callout">No elevators were returned by the API.</div>
-      ) : null}
-
-      {!isLoading && !error && elevators.length > 0 ? (
-        <div className="fleet-grid">
-          {elevators.map((elevator) => (
-            <article key={elevator.id} className="fleet-card">
-              <div className="fleet-card__header">
-                <div>
-                  <span className="fleet-card__eyebrow">Elevator</span>
-                  <h3>{elevator.id}</h3>
-                </div>
-                <span className={getStatusTone(elevator)}>{elevator.status ?? "UNKNOWN"}</span>
-              </div>
-
-              <dl className="metric-list">
-                <div>
-                  <dt>Health score</dt>
-                  <dd>{formatHealthScore(elevator.latest_health_score)}</dd>
-                </div>
-                <div>
-                  <dt>Capacity</dt>
-                  <dd>{formatCapacity(elevator.max_capacity_kg)}</dd>
-                </div>
-                <div>
-                  <dt>Created</dt>
-                  <dd>{formatTimestamp(elevator.created_at)}</dd>
-                </div>
-              </dl>
-
-              <Link className="button-link" to={`/live?elevator=${encodeURIComponent(elevator.id)}`}>
-                Open Live Monitor
-              </Link>
-            </article>
-          ))}
-        </div>
-      ) : null}
-    </section>
+      {body}
+    </PageContainer>
   );
 }
-

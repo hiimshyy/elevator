@@ -2,6 +2,15 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { MetricSparkline } from "../components/charts/MetricSparkline";
+import { PageContainer, ResponsiveGrid } from "../components/layout/PageContainer";
+import { Card } from "../components/ui/Card";
+import { DataState } from "../components/ui/DataState";
+import { Select } from "../components/ui/Field";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import {
+  mapConnectionStateToState,
+  type ConnectionState,
+} from "../components/ui/statusState";
 import {
   ElevatorSummary,
   SensorReading,
@@ -11,7 +20,31 @@ import {
 import { useLocalConfig } from "../lib/localConfig";
 import { createSensorStreamUrl } from "../lib/ws";
 
-const maxPoints = 60;
+// =============================================================================
+// Live Monitor route — refactored to consume the redesigned UI primitives.
+//
+// Requirements covered:
+//   - 4.5 : metric charts arranged in a single column at Mobile — the
+//           ResponsiveGrid inherits `columnCount` from useBreakpoint(),
+//           which yields 1 at Mobile (and up to 2 elsewhere here).
+//   - 6.9 : accessible text alternative for each MetricSparkline (owned
+//           by MetricSparkline itself once the timestamp / value / unit
+//           props are supplied).
+//   - 7.6 : persistent synthetic-trace label — the page renders a
+//           persistent banner whenever ANY point in the display series
+//           is synthetic, and each MetricSparkline receives
+//           `hasSyntheticPoints` so it renders its own per-chart marker.
+//   - 7.7 : WebSocket connection state normalized to exactly three
+//           mutually distinct treatments (connected / connecting /
+//           disconnected) driven by the status-state mapper and rendered
+//           through StatusBadge. React batches the setState -> re-render
+//           on every socket event, so the badge updates well within 1s.
+//   - 7.8 : the legacy toolbar meta rows that surfaced the REST readings
+//           URL and the WebSocket URL are removed; endpoint URLs are
+//           confined to the Local Config route.
+// =============================================================================
+
+const MAX_POINTS = 60;
 
 interface LivePoint {
   timestamp: string;
@@ -57,7 +90,7 @@ function normalizeReading(reading: SensorReading): LivePoint {
     controllerRegister1047: reading.controller_register_1047 ?? null,
     controllerRegister0x2121: reading.controller_register_0x2121 ?? null,
     controllerRegister0x2122: reading.controller_register_0x2122 ?? null,
-    source: "actual"
+    source: "actual",
   };
 }
 
@@ -72,7 +105,7 @@ function mergePoint(existing: LivePoint[], incoming: LivePoint): LivePoint[] {
   }
 
   next.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
-  return next.slice(-maxPoints);
+  return next.slice(-MAX_POINTS);
 }
 
 function clampMetric(value: number): number {
@@ -95,14 +128,14 @@ function createSyntheticPoint(
     accelRmsMg: (latest.accelRmsMg - previousPoint.accelRmsMg) * trendWeight,
     velocityRmsMms: (latest.velocityRmsMms - previousPoint.velocityRmsMms) * trendWeight,
     loadKg: (latest.loadKg - previousPoint.loadKg) * trendWeight,
-    temperatureC: (latest.temperatureC - previousPoint.temperatureC) * trendWeight
+    temperatureC: (latest.temperatureC - previousPoint.temperatureC) * trendWeight,
   };
 
   const amplitude = {
     accelRmsMg: Math.max(0.8, latest.accelRmsMg * 0.018),
     velocityRmsMms: Math.max(0.05, latest.velocityRmsMms * 0.03),
     loadKg: Math.max(1.2, latest.loadKg * 0.006),
-    temperatureC: Math.max(0.08, latest.temperatureC * 0.01)
+    temperatureC: Math.max(0.08, latest.temperatureC * 0.01),
   };
 
   return {
@@ -118,7 +151,7 @@ function createSyntheticPoint(
     controllerRegister1047: latest.controllerRegister1047,
     controllerRegister0x2121: latest.controllerRegister0x2121,
     controllerRegister0x2122: latest.controllerRegister0x2122,
-    source: "synthetic"
+    source: "synthetic",
   };
 }
 
@@ -145,7 +178,7 @@ function buildDisplayPoints(actualPoints: LivePoint[], nowMs: number): LivePoint
     createSyntheticPoint(latest, previous, elapsedMs, index + 1)
   );
 
-  return [...actualPoints, ...syntheticPoints].slice(-maxPoints);
+  return [...actualPoints, ...syntheticPoints].slice(-MAX_POINTS);
 }
 
 function formatTimestamp(value: string): string {
@@ -156,7 +189,7 @@ function formatTimestamp(value: string): string {
 
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    timeStyle: "medium"
+    timeStyle: "medium",
   }).format(date);
 }
 
@@ -164,22 +197,39 @@ function formatControllerValue(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return "N/A";
   }
-
   return value.toLocaleString();
 }
+
+/**
+ * Descriptive label for each canonical connection state. Kept alongside
+ * the state so both the badge (via labelOverride) and the announcer
+ * message read the same wording.
+ */
+const CONNECTION_STATE_LABEL: Record<ConnectionState, string> = {
+  connected: "Live socket connected",
+  connecting: "Socket connecting",
+  disconnected: "Socket disconnected",
+};
+
+const VIEW_LABEL = "Live Monitor";
 
 export function LiveMonitorPage(): JSX.Element {
   const { apiBaseUrl, apiKey, wsBaseUrl } = useLocalConfig();
   const [searchParams, setSearchParams] = useSearchParams();
   const [elevators, setElevators] = useState<ElevatorSummary[]>([]);
   const [points, setPoints] = useState<LivePoint[]>([]);
-  const [connectionState, setConnectionState] = useState("Connecting");
+  // Canonical three-state connection status (Req 7.7). The socket
+  // lifecycle collapses to exactly these three values so the StatusBadge
+  // renders one of exactly three mutually-distinct treatments.
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const selectedElevator = searchParams.get("elevator") ?? "elev-001";
-  const readingsUrl = `${apiBaseUrl}/elevators/${selectedElevator}/readings?limit=${maxPoints}`;
+  // Socket URL and REST readings path are still computed for the fetcher
+  // / WebSocket, but they are no longer displayed anywhere on this page
+  // (Requirement 7.8).
   const socketUrl = createSensorStreamUrl(wsBaseUrl, selectedElevator);
 
   useEffect(() => {
@@ -213,7 +263,7 @@ export function LiveMonitorPage(): JSX.Element {
 
     const loadHistory = async (): Promise<void> => {
       try {
-        const readings = await listReadings(selectedElevator, maxPoints, controller.signal);
+        const readings = await listReadings(selectedElevator, MAX_POINTS, controller.signal);
         const normalized = readings
           .map(normalizeReading)
           .sort((left, right) => left.timestamp.localeCompare(right.timestamp));
@@ -246,10 +296,12 @@ export function LiveMonitorPage(): JSX.Element {
 
   useEffect(() => {
     const socket = new WebSocket(socketUrl);
-    setConnectionState("Connecting");
+    // Requirement 7.7: normalize the pre-open state to "connecting" so
+    // the badge starts in the canonical three-state set.
+    setConnectionState("connecting");
 
     socket.onopen = () => {
-      setConnectionState("Live");
+      setConnectionState("connected");
     };
 
     socket.onmessage = (event) => {
@@ -271,18 +323,20 @@ export function LiveMonitorPage(): JSX.Element {
           controllerRegister1047: readings.controller_register_1047 ?? null,
           controllerRegister0x2121: readings.controller_register_0x2121 ?? null,
           controllerRegister0x2122: readings.controller_register_0x2122 ?? null,
-          source: "actual"
+          source: "actual",
         })
       );
       setNowMs(Date.now());
     };
 
     socket.onerror = () => {
-      setConnectionState("Socket error");
+      // Both error and close land in "disconnected" — from the operator's
+      // perspective these are the same "we're not receiving data" state.
+      setConnectionState("disconnected");
     };
 
     socket.onclose = () => {
-      setConnectionState("Disconnected");
+      setConnectionState("disconnected");
     };
 
     return () => {
@@ -294,6 +348,10 @@ export function LiveMonitorPage(): JSX.Element {
   const latestActualPoint = points[points.length - 1] ?? null;
   const latestDisplayPoint = displayPoints[displayPoints.length - 1] ?? null;
   const hasData = displayPoints.length > 0;
+  const hasSyntheticPoints = useMemo(
+    () => displayPoints.some((point) => point.source === "synthetic"),
+    [displayPoints]
+  );
   const hasControllerData = Boolean(
     latestActualPoint &&
       (latestActualPoint.controllerRegister1047 !== null ||
@@ -315,147 +373,201 @@ export function LiveMonitorPage(): JSX.Element {
       accel: displayPoints.map((point) => point.accelRmsMg),
       velocity: displayPoints.map((point) => point.velocityRmsMms),
       load: displayPoints.map((point) => point.loadKg),
-      temperature: displayPoints.map((point) => point.temperatureC)
+      temperature: displayPoints.map((point) => point.temperatureC),
     }),
     [displayPoints]
   );
 
+  const connectionBadgeState = mapConnectionStateToState(connectionState);
+  const connectionBadgeLabel = CONNECTION_STATE_LABEL[connectionState];
+
   return (
-    <section className="page">
+    <PageContainer>
       <header className="page__header">
         <div>
           <span className="page__eyebrow">Route</span>
           <h2>Live Monitor</h2>
         </div>
-        <div className="status-pill">{connectionState}</div>
+        {/* Requirement 7.7: exactly three mutually-distinct treatments.
+            StatusBadge combines color + icon + label + shape, and the
+            connection-state -> status-state mapping is total across the
+            three canonical states so this badge is always exactly one of
+            three visually-distinct renderings. */}
+        <StatusBadge
+          state={connectionBadgeState}
+          labelOverride={connectionBadgeLabel}
+          data-connection-state={connectionState}
+          data-testid="live-monitor-connection-badge"
+        />
       </header>
 
-      <div className="toolbar">
-        <label className="field">
-          <span>Select elevator</span>
-          <select
+      {/* Elevator selector — uses the Field/Select primitive which
+          guarantees label association, 44px touch target, and validation
+          wiring. The primitive is required by the redesign in place of
+          the legacy .toolbar / .field literal markup. The endpoint URL
+          rows that previously accompanied the selector have been removed
+          (Requirement 7.8). */}
+      <ResponsiveGrid maxColumns={2}>
+        <Card elevation="flat">
+          <Select
+            label="Select elevator"
             value={selectedElevator}
             onChange={(event) => setSearchParams({ elevator: event.target.value })}
-          >
-            {elevators.map((elevator) => (
-              <option key={elevator.id} value={elevator.id}>
-                {elevator.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="toolbar__meta">
-          <span>History: {readingsUrl}</span>
-          <span>Socket: {socketUrl}</span>
-        </div>
-      </div>
+            options={elevators.map((elevator) => ({
+              value: elevator.id,
+              label: elevator.id,
+            }))}
+          />
+        </Card>
+        <Card title="Signal source" headingLevel={3} elevation="flat">
+          <p>
+            {latestDisplayPoint?.source === "synthetic"
+              ? "Currently rendering an interpolated live trace."
+              : "Currently rendering the latest live packet."}
+          </p>
+        </Card>
+      </ResponsiveGrid>
 
-      {error ? <div className="callout callout--error">Live monitor error: {error}</div> : null}
+      {error ? (
+        <DataState
+          state="error"
+          viewLabel={VIEW_LABEL}
+          errorReason={error}
+        />
+      ) : null}
 
-      {!historyLoaded ? <div className="callout">Loading reading history...</div> : null}
+      {!historyLoaded ? (
+        <DataState state="loading" viewLabel={VIEW_LABEL} />
+      ) : null}
 
       {historyLoaded && !hasData ? (
-        <div className="callout">
-          No readings available for <strong>{selectedElevator}</strong>.
-        </div>
+        <DataState
+          state="empty"
+          viewLabel={VIEW_LABEL}
+          missingDataLabel={`readings for ${selectedElevator}`}
+        />
       ) : null}
 
       {latestActualPoint ? (
         <>
-          <div className="metric-banner metric-banner--live">
-            <div>
-              <span className="fleet-card__eyebrow">Latest packet</span>
-              <strong>{formatTimestamp(latestActualPoint.timestamp)}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Realtime phase</span>
-              <strong>{streamPhase}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Packet age</span>
-              <strong>{secondsSinceActualSample ?? 0}s ago</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Rendered samples</span>
-              <strong>{displayPoints.length}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Signal source</span>
-              <strong>
-                {latestDisplayPoint?.source === "synthetic" ? "Interpolated live trace" : "Live packet"}
-              </strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Selected elevator</span>
-              <strong>{selectedElevator}</strong>
-            </div>
-          </div>
+          {/* Requirement 7.6: persistent page-level label whenever the
+              display series contains any interpolated (synthetic) point.
+              Rendered as its own Card so it stays visible independent of
+              scroll position within the metric-banner cluster. */}
+          {hasSyntheticPoints ? (
+            <Card
+              elevation="flat"
+              className="live-monitor__synthetic-banner"
+              data-testid="live-monitor-synthetic-banner"
+            >
+              <p>
+                <strong>Synthetic interpolated trace visible.</strong> Charts
+                include one or more interpolated points generated between live
+                packets so the trend stays continuous. Interpolated segments are
+                labeled per chart.
+              </p>
+            </Card>
+          ) : null}
 
-          <div className="metric-banner">
-            <div>
-              <span className="fleet-card__eyebrow">Controller (RS-485)</span>
-              <strong>{hasControllerData ? "Connected" : "No controller data"}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Register 1047</span>
-              <strong>{formatControllerValue(latestActualPoint.controllerRegister1047)}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Register 0x2121</span>
-              <strong>{formatControllerValue(latestActualPoint.controllerRegister0x2121)}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Register 0x2122</span>
-              <strong>{formatControllerValue(latestActualPoint.controllerRegister0x2122)}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Controller timestamp</span>
-              <strong>{formatTimestamp(latestActualPoint.timestamp)}</strong>
-            </div>
-            <div>
-              <span className="fleet-card__eyebrow">Field note</span>
-              <strong>
-                {hasControllerData ? "Live controller values" : "Waiting for controller packet"}
-              </strong>
-            </div>
-          </div>
+          <ResponsiveGrid maxColumns={3} aria-label="Live packet metrics">
+            <Card title="Latest packet" headingLevel={3} elevation="flat">
+              <p>{formatTimestamp(latestActualPoint.timestamp)}</p>
+            </Card>
+            <Card title="Realtime phase" headingLevel={3} elevation="flat">
+              <p>{streamPhase}</p>
+            </Card>
+            <Card title="Packet age" headingLevel={3} elevation="flat">
+              <p>{secondsSinceActualSample ?? 0}s ago</p>
+            </Card>
+            <Card title="Rendered samples" headingLevel={3} elevation="flat">
+              <p>{displayPoints.length}</p>
+            </Card>
+            <Card title="Signal source" headingLevel={3} elevation="flat">
+              <p>
+                {latestDisplayPoint?.source === "synthetic"
+                  ? "Interpolated live trace"
+                  : "Live packet"}
+              </p>
+            </Card>
+            <Card title="Selected elevator" headingLevel={3} elevation="flat">
+              <p>{selectedElevator}</p>
+            </Card>
+          </ResponsiveGrid>
 
-          <div className="callout">
-            Controller values above come from the RS-485 elevator controller. The vibration,
-            temperature, and load charts remain mock-generated while the external sensors are not
-            installed.
-          </div>
+          <ResponsiveGrid maxColumns={3} aria-label="RS-485 controller registers">
+            <Card title="Controller (RS-485)" headingLevel={3} elevation="flat">
+              <p>{hasControllerData ? "Connected" : "No controller data"}</p>
+            </Card>
+            <Card title="Register 1047" headingLevel={3} elevation="flat">
+              <p>{formatControllerValue(latestActualPoint.controllerRegister1047)}</p>
+            </Card>
+            <Card title="Register 0x2121" headingLevel={3} elevation="flat">
+              <p>{formatControllerValue(latestActualPoint.controllerRegister0x2121)}</p>
+            </Card>
+            <Card title="Register 0x2122" headingLevel={3} elevation="flat">
+              <p>{formatControllerValue(latestActualPoint.controllerRegister0x2122)}</p>
+            </Card>
+            <Card title="Controller timestamp" headingLevel={3} elevation="flat">
+              <p>{formatTimestamp(latestActualPoint.timestamp)}</p>
+            </Card>
+            <Card title="Field note" headingLevel={3} elevation="flat">
+              <p>
+                {hasControllerData
+                  ? "Live controller values"
+                  : "Waiting for controller packet"}
+              </p>
+            </Card>
+          </ResponsiveGrid>
+
+          <Card elevation="flat">
+            <p>
+              Controller values above come from the RS-485 elevator controller.
+              The vibration, temperature, and load charts remain mock-generated
+              while the external sensors are not installed.
+            </p>
+          </Card>
         </>
       ) : null}
 
       {hasData ? (
-        <div className="chart-grid">
+        // Requirement 4.5: single-column at Mobile. ResponsiveGrid
+        // inherits the breakpoint's `columnCount` (1 on Mobile) and is
+        // capped at 2 so Tablet+ gets at most a 2-up chart layout.
+        <ResponsiveGrid maxColumns={2} aria-label="Live metric charts">
           <MetricSparkline
             color="#0f7c82"
             label="Accel RMS"
             points={chartSeries.accel}
             unit="mg"
+            latestTimestamp={latestDisplayPoint?.timestamp ?? null}
+            hasSyntheticPoints={hasSyntheticPoints}
           />
           <MetricSparkline
             color="#d07a14"
             label="Velocity RMS"
             points={chartSeries.velocity}
             unit="mm/s"
+            latestTimestamp={latestDisplayPoint?.timestamp ?? null}
+            hasSyntheticPoints={hasSyntheticPoints}
           />
           <MetricSparkline
             color="#196f47"
             label="Load"
             points={chartSeries.load}
             unit="kg"
+            latestTimestamp={latestDisplayPoint?.timestamp ?? null}
+            hasSyntheticPoints={hasSyntheticPoints}
           />
           <MetricSparkline
             color="#9c2f2f"
             label="Temperature"
             points={chartSeries.temperature}
             unit="C"
+            latestTimestamp={latestDisplayPoint?.timestamp ?? null}
+            hasSyntheticPoints={hasSyntheticPoints}
           />
-        </div>
+        </ResponsiveGrid>
       ) : null}
-    </section>
+    </PageContainer>
   );
 }

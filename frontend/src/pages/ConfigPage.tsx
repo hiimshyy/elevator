@@ -8,6 +8,11 @@ import {
   useLocalConfig
 } from "../lib/localConfig";
 
+import { PageContainer, ResponsiveGrid } from "../components/layout/PageContainer";
+import { Card } from "../components/ui/Card";
+import { Button } from "../components/ui/Button";
+import { TextInput } from "../components/ui/Field";
+
 interface DraftConfig {
   apiBaseUrl: string;
   apiKey: string;
@@ -42,6 +47,7 @@ export function ConfigPage(): JSX.Element {
   });
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [isTesting, setIsTesting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ apiBaseUrl?: string; apiKey?: string }>({});
 
   useEffect(() => {
     setDraft({
@@ -58,8 +64,17 @@ export function ConfigPage(): JSX.Element {
 
   const handleSave = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    setFieldErrors({});
 
     if (!normalizedDraft.apiBaseUrl || !normalizedDraft.apiKey) {
+      const errors: { apiBaseUrl?: string; apiKey?: string } = {};
+      if (!normalizedDraft.apiBaseUrl) {
+        errors.apiBaseUrl = "API base URL is required.";
+      }
+      if (!normalizedDraft.apiKey) {
+        errors.apiKey = "API key is required.";
+      }
+      setFieldErrors(errors);
       setFeedback({
         text: "API base URL and API key are both required.",
         tone: "error"
@@ -73,6 +88,7 @@ export function ConfigPage(): JSX.Element {
         throw new Error("unsupported-protocol");
       }
     } catch {
+      setFieldErrors({ apiBaseUrl: "Must be a valid absolute HTTP or HTTPS URL." });
       setFeedback({
         text: "API base URL must be a valid absolute HTTP or HTTPS URL.",
         tone: "error"
@@ -92,11 +108,13 @@ export function ConfigPage(): JSX.Element {
       apiBaseUrl: currentConfig.apiBaseUrl,
       apiKey: currentConfig.apiKey
     });
+    setFieldErrors({});
     setFeedback(null);
   };
 
   const handleUseDefaults = (): void => {
     resetLocalConfig();
+    setFieldErrors({});
     setFeedback({
       text: "Reverted to built-in defaults for this browser.",
       tone: "success"
@@ -148,184 +166,190 @@ export function ConfigPage(): JSX.Element {
   };
 
   return (
-    <section className="page">
-      <header className="page__header">
+    <PageContainer>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--spacing-3)" }}>
         <div>
-          <span className="page__eyebrow">Route</span>
-          <h2>Local Config</h2>
+          <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Route</span>
+          <h2 style={{ margin: 0 }}>Local Config</h2>
         </div>
-        <div className="status-pill">
+        <span style={{ padding: "var(--spacing-1) var(--spacing-3)", borderRadius: "var(--radius-full, 9999px)", fontSize: "var(--font-size-sm)", background: "var(--color-surface-alt, #e2e8f0)", color: "var(--color-text)" }}>
           {currentConfig.isUsingDefaults ? "Using defaults" : "Using local overrides"}
-        </div>
+        </span>
       </header>
 
-      <div className="summary-strip">
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Storage scope</span>
+      <ResponsiveGrid maxColumns={4}>
+        <Card elevation="flat" title="Storage scope" headingLevel={3}>
           <strong>This browser</strong>
-        </article>
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Current API</span>
-          <strong className="summary-card__value">{currentConfig.apiBaseUrl}</strong>
-        </article>
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Current socket</span>
-          <strong className="summary-card__value">{currentConfig.wsBaseUrl}</strong>
-        </article>
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Mode</span>
+        </Card>
+        <Card elevation="flat" title="Current API" headingLevel={3}>
+          <strong style={{ wordBreak: "break-all" }}>{currentConfig.apiBaseUrl}</strong>
+        </Card>
+        <Card elevation="flat" title="Current socket" headingLevel={3}>
+          <strong style={{ wordBreak: "break-all" }}>{currentConfig.wsBaseUrl}</strong>
+        </Card>
+        <Card elevation="flat" title="Mode" headingLevel={3}>
           <strong>{currentConfig.isUsingDefaults ? "Default" : "Custom"}</strong>
-        </article>
-      </div>
+        </Card>
+      </ResponsiveGrid>
 
-      <div className="card-grid card-grid--wide">
-        <article className="card">
-          <h3>What this page controls</h3>
+      <ResponsiveGrid maxColumns={2}>
+        <Card title="What this page controls" headingLevel={3}>
           <p>
             API requests and WebSocket connections now read their endpoint and API key from browser
             storage instead of fixed build-time constants.
           </p>
-        </article>
-        <article className="card">
-          <h3>Built-in defaults</h3>
+        </Card>
+        <Card title="Built-in defaults" headingLevel={3}>
           <p>
             <code>{defaultConfig.apiBaseUrl}</code>
             <br />
             <code>{defaultConfig.apiKey}</code>
           </p>
-        </article>
-      </div>
+        </Card>
+      </ResponsiveGrid>
 
       {feedback ? (
-        <div className={feedback.tone === "error" ? "callout callout--error" : "callout"}>
+        <div
+          role="alert"
+          aria-live="polite"
+          style={{
+            padding: "var(--spacing-3) var(--spacing-4)",
+            borderRadius: "var(--radius-md, 6px)",
+            background: feedback.tone === "error"
+              ? "var(--color-status-critical-bg, #fee2e2)"
+              : "var(--color-status-healthy-bg, #d1fae5)",
+            color: feedback.tone === "error"
+              ? "var(--color-status-critical, #dc2626)"
+              : "var(--color-status-healthy, #16a34a)",
+            marginBlock: "var(--spacing-3)"
+          }}
+        >
           {feedback.text}
         </div>
       ) : null}
 
-      <div className="config-layout">
-        <form className="panel config-form" onSubmit={handleSave}>
-          <div className="panel__header">
-            <div>
-              <span className="fleet-card__eyebrow">Settings</span>
-              <h3>Connection profile</h3>
-            </div>
-            <span className="status-pill">{hasUnsavedChanges ? "Unsaved changes" : "Saved"}</span>
-          </div>
-
-          <label className="field">
-            <span>API base URL</span>
-            <input
-              type="text"
-              value={draft.apiBaseUrl}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  apiBaseUrl: event.target.value
-                }))
-              }
-              placeholder="http://localhost:8000/api"
-            />
-          </label>
-
-          <label className="field">
-            <span>API key</span>
-            <input
-              type="text"
-              value={draft.apiKey}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  apiKey: event.target.value
-                }))
-              }
-              placeholder="elevator-secret-key-123"
-            />
-          </label>
-
-          <div className="toolbar__meta">
-            <span>Preview REST base: {normalizedDraft.apiBaseUrl || currentConfig.apiBaseUrl}</span>
-            <span>Preview socket base: {wsPreview}</span>
-          </div>
-
-          <div className="action-row">
-            <button className="action-button" type="submit">
-              Save local config
-            </button>
-            <button
-              className="action-button action-button--secondary"
-              onClick={() => void handleTestConnection()}
-              disabled={isTesting}
-              type="button"
-            >
-              {isTesting ? "Testing..." : "Test connection"}
-            </button>
-            <button
-              className="action-button action-button--ghost"
-              onClick={handleRestoreSaved}
-              disabled={!hasUnsavedChanges}
-              type="button"
-            >
-              Restore saved
-            </button>
-            <button
-              className="action-button action-button--ghost"
-              onClick={handleUseDefaults}
-              type="button"
-            >
-              Use defaults
-            </button>
-          </div>
-        </form>
-
-        <section className="panel">
-          <div className="panel__header">
-            <div>
-              <span className="fleet-card__eyebrow">Behavior</span>
-              <h3>How it applies</h3>
-            </div>
-          </div>
-
-          <div className="stack">
-            <article className="workflow-card">
-              <div className="workflow-card__header">
-                <div>
-                  <span className="fleet-card__eyebrow">Runtime</span>
-                  <h4>Requests update immediately</h4>
-                </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", gap: "var(--spacing-4)" }}>
+        <Card
+          header={
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--spacing-2)" }}>
+              <div>
+                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Settings</span>
+                <h3 style={{ margin: 0 }}>Connection profile</h3>
               </div>
-              <p className="workflow-card__body">
+              <span style={{ padding: "var(--spacing-1) var(--spacing-3)", borderRadius: "var(--radius-full, 9999px)", fontSize: "var(--font-size-sm)", background: "var(--color-surface-alt, #e2e8f0)", color: "var(--color-text)" }}>
+                {hasUnsavedChanges ? "Unsaved changes" : "Saved"}
+              </span>
+            </div>
+          }
+        >
+          <form onSubmit={handleSave}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-4)" }}>
+              <TextInput
+                label="API base URL"
+                value={draft.apiBaseUrl}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    apiBaseUrl: event.target.value
+                  }))
+                }
+                placeholder="http://localhost:8000/api"
+                required
+                validationMessage={fieldErrors.apiBaseUrl}
+              />
+
+              <TextInput
+                label="API key"
+                value={draft.apiKey}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    apiKey: event.target.value
+                  }))
+                }
+                placeholder="elevator-secret-key-123"
+                required
+                validationMessage={fieldErrors.apiKey}
+              />
+
+              <div style={{ fontSize: "var(--font-size-sm)", opacity: 0.8 }}>
+                <span>Preview REST base: {normalizedDraft.apiBaseUrl || currentConfig.apiBaseUrl}</span>
+                <br />
+                <span>Preview socket base: {wsPreview}</span>
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-3)" }}>
+                <Button variant="primary" type="submit">
+                  Save local config
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void handleTestConnection()}
+                  disabled={isTesting}
+                >
+                  {isTesting ? "Testing..." : "Test connection"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleRestoreSaved}
+                  disabled={!hasUnsavedChanges}
+                >
+                  Restore saved
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleUseDefaults}
+                >
+                  Use defaults
+                </Button>
+              </div>
+            </div>
+          </form>
+        </Card>
+
+        <Card
+          header={
+            <div>
+              <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Behavior</span>
+              <h3 style={{ margin: 0 }}>How it applies</h3>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-4)" }}>
+            <Card elevation="flat" headingLevel={4}>
+              <div>
+                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Runtime</span>
+                <h4 style={{ margin: 0 }}>Requests update immediately</h4>
+              </div>
+              <p>
                 Saving here changes the endpoint used by fleet, live monitor, alerts, and
                 maintenance requests without rebuilding the frontend.
               </p>
-            </article>
+            </Card>
 
-            <article className="workflow-card">
-              <div className="workflow-card__header">
-                <div>
-                  <span className="fleet-card__eyebrow">Storage</span>
-                  <h4>Per-browser persistence</h4>
-                </div>
+            <Card elevation="flat" headingLevel={4}>
+              <div>
+                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Storage</span>
+                <h4 style={{ margin: 0 }}>Per-browser persistence</h4>
               </div>
-              <p className="workflow-card__body">
+              <p>
                 Values are stored in <code>localStorage</code>, so they stay on this machine and in
                 this browser profile.
               </p>
-            </article>
+            </Card>
 
-            <article className="workflow-card">
-              <div className="workflow-card__header">
-                <div>
-                  <span className="fleet-card__eyebrow">Fallback</span>
-                  <h4>Defaults remain available</h4>
-                </div>
+            <Card elevation="flat" headingLevel={4}>
+              <div>
+                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Fallback</span>
+                <h4 style={{ margin: 0 }}>Defaults remain available</h4>
               </div>
-              <p className="workflow-card__body">
+              <p>
                 Clearing the local override falls back to the built-in localhost configuration.
               </p>
-            </article>
+            </Card>
           </div>
-        </section>
+        </Card>
       </div>
-    </section>
+    </PageContainer>
   );
 }

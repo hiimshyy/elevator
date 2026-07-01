@@ -1,0 +1,66 @@
+/* =============================================================================
+   MetricSparkline — chart-card enhancements for the redesigned Live Monitor.
+   Requirements: 4.5, 6.9, 7.6, 3.8
+
+   The base .chart-card / .chart-card__* class rules already live in index.css
+   (legacy styling kept for continuity). This stylesheet only adds the token-
+   driven pieces the redesign needs on top of that base:
+     - a subtle background surface for the SVG plot area (replaces a
+       hard-coded rgba fill in the previous JSX)
+     - a persistent per-chart "synthetic trace" label (Req 7.6)
+     - a visually-hidden text alternative slot used when the on-screen value
+       block is not sufficient for AT (Req 6.9)
+
+   All values reference design tokens defined in styles/tokens.css.
+   No hard-coded color or spacing literals.
+   ============================================================================= */
+
+/* Subtle background for the SVG's rounded rect, driven by a token so the
+   rect follows theme changes instead of being a fixed rgba literal. */
+.chart-card__plot-bg {
+  fill: var(--color-border);
+  opacity: 0.35;
+}
+
+/* -----------------------------------------------------------------------------
+   Persistent per-chart synthetic-trace label (Req 7.6)
+   Always rendered in the chart header when the display series contains at
+   least one interpolated (synthetic) point. Uses the "warning" status token
+   family so the badge reads as a distinct-but-informational marker.
+   ----------------------------------------------------------------------------- */
+.chart-card__synthetic-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-status-warning);
+  color: var(--color-status-warning-on);
+  border: 1px solid var(--color-status-warning-solid);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* -----------------------------------------------------------------------------
+   Visually-hidden text alternative for the chart (Req 6.9).
+   Rendered in-DOM so screen readers can announce the latest value / unit /
+   timestamp explicitly even if a client ignores the SVG's aria-label. Uses
+   the standard "sr-only" pattern.
+   ----------------------------------------------------------------------------- */
+.chart-card__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,82 @@
+/* =============================================================================
+   Global Accessibility Stylesheet
+   Requirements: 6.4, 6.10, 6.11, 6.12
+   
+   Provides baseline focus indicators, keyboard operability, and reduced-motion
+   treatments across all interactive elements. Component-level :focus-visible
+   styles may override these low-specificity selectors when needed.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Visible focus indicators (Req 6.4)
+   Token-driven outline with >= 3:1 contrast ratio against adjacent colors.
+   Uses :focus-visible so mouse users don't see focus rings on click.
+   Low specificity — component stylesheets can override.
+   --------------------------------------------------------------------------- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+summary:focus-visible,
+details:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="option"]:focus-visible {
+  outline: var(--border-width-focus, 2px) solid var(--color-accent, #076b75);
+  outline-offset: var(--border-width-focus, 2px);
+}
+
+/* ---------------------------------------------------------------------------
+   Remove default :focus outline for elements that support :focus-visible
+   to avoid double outlines (Req 6.4). The :focus-visible rule above provides
+   the actual indicator.
+   --------------------------------------------------------------------------- */
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+[tabindex]:focus:not(:focus-visible),
+summary:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+[role="link"]:focus:not(:focus-visible),
+[role="tab"]:focus:not(:focus-visible),
+[role="menuitem"]:focus:not(:focus-visible),
+[role="option"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Keyboard operability (Req 6.11, 6.12)
+   - No tabindex > 0 should ever be used (document order = tab order).
+   - All interactive elements use natural focus order.
+   - No focus traps: overlays/drawers must allow tab-out or provide ESC close.
+   
+   This rule ensures elements with tabindex="-1" (programmatic focus targets
+   like <main>) don't show focus rings when clicked but do when focused via
+   keyboard (e.g., skip-link target).
+   --------------------------------------------------------------------------- */
+[tabindex="-1"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion (Req 6.10)
+   Catch-all that disables ALL non-essential animations and transitions,
+   even those in legacy CSS not yet migrated to motion tokens. State-conveying
+   changes still apply instantly (0ms duration).
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

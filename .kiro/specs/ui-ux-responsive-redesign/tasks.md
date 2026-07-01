@@ -134,101 +134,101 @@ Production UI code changes in Stage 3 are gated behind the approval recorded in 
 - [x] 11. Checkpoint - foundations
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. Implement the Navigation Shell
-  - [ ] 12.1 Create `NavigationShell` and nav toggle reducer (`frontend/src/components/layout/NavigationShell.tsx`)
+- [x] 12. Implement the Navigation Shell
+  - [x] 12.1 Create `NavigationShell` and nav toggle reducer (`frontend/src/components/layout/NavigationShell.tsx`)
     - Persistent sidebar at Desktop/Large_Desktop; collapsed-behind-menu-control at Mobile/Tablet with a toggle that flips expanded/collapsed and a link-selection action that navigates then collapses.
     - Apply an active-link treatment using `aria-current="page"` plus a non-color distinction (rail indicator/weight); include a skip-to-content link and the `ThemeToggle`. Remove endpoint URL/status from the sidebar brand block.
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 7.8_
 
-  - [ ] 12.2 Write property test for navigation toggle
+  - [x] 12.2 Write property test for navigation toggle
     - **Property 4: Navigation toggle is an involution and link selection collapses**
     - **Validates: Requirements 5.3, 5.4, 5.5**
 
-  - [ ] 12.3 Write property test for active navigation link distinction
+  - [x] 12.3 Write property test for active navigation link distinction
     - **Property 5: Active navigation link is distinguished by a non-color means**
     - **Validates: Requirements 5.7**
 
-- [ ] 13. Implement the responsive layout container
-  - [ ] 13.1 Create `PageContainer`/`ResponsiveLayout` (`frontend/src/components/layout/PageContainer.tsx`)
+- [x] 13. Implement the responsive layout container
+  - [x] 13.1 Create `PageContainer`/`ResponsiveLayout` (`frontend/src/components/layout/PageContainer.tsx`)
     - Single-column at Mobile, <= 2 columns at Tablet, content capped at 1440px and centered at Large_Desktop; no horizontal page scroll at >= 320px, single column with horizontal scroll permitted below 320px. Consume `useBreakpoint`.
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.6, 4.7, 4.8_
 
-  - [ ] 13.2 Write integration tests for responsive layout
+  - [x] 13.2 Write integration tests for responsive layout
     - Verify column count and content-cap changes occur only at defined thresholds using simulated viewport widths.
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.6, 4.8_
 
-- [ ] 14. Implement data-state handling
-  - [ ] 14.1 Create the view data-state reducer and request lifecycle (`frontend/src/lib/viewState.ts`)
+- [x] 14. Implement data-state handling
+  - [x] 14.1 Create the view data-state reducer and request lifecycle (`frontend/src/lib/viewState.ts`)
     - Implement `ViewDataState<T>` transitions (loading/empty/error/populated) holding `data` and `error` separately; wire loading indicator within 300ms, a 30s `AbortController` watchdog producing a timeout error with retry, error messages containing view name + reason while preserving prior data, and retry returning to loading.
     - _Requirements: 7.1, 7.2, 7.4, 7.5_
 
-  - [ ] 14.2 Write property test for empty-state naming
+  - [x] 14.2 Write property test for empty-state naming
     - **Property 10: Empty state names the missing data**
     - **Validates: Requirements 7.3**
 
-  - [ ] 14.3 Write property test for error-state data preservation
+  - [x] 14.3 Write property test for error-state data preservation
     - **Property 11: Error state preserves prior data and describes the failure**
     - **Validates: Requirements 7.4**
 
-  - [ ] 14.4 Write unit tests for data-state timing
+  - [x] 14.4 Write unit tests for data-state timing
     - Use fake timers to verify the 300ms loading indicator and 30s timeout-to-error transition.
     - _Requirements: 7.1, 7.2, 7.5_
 
-- [ ] 15. Redesign the Fleet Overview route
-  - [ ] 15.1 Refactor `frontend/src/pages/FleetOverviewPage.tsx`
+- [x] 15. Redesign the Fleet Overview route
+  - [x] 15.1 Refactor `frontend/src/pages/FleetOverviewPage.tsx`
     - Replace literal-styled markup with `Card`/`StatusBadge`/`Button`/`DataState` primitives inside `PageContainer`; remove any endpoint URL strings.
     - _Requirements: 3.3, 3.8, 4.1, 4.2, 6.3, 7.1, 7.3, 7.4, 7.8_
 
-- [ ] 16. Redesign the Live Monitor route
-  - [ ] 16.1 Refactor `frontend/src/pages/LiveMonitorPage.tsx` and `frontend/src/components/charts/MetricSparkline.tsx`
+- [x] 16. Redesign the Live Monitor route
+  - [x] 16.1 Refactor `frontend/src/pages/LiveMonitorPage.tsx` and `frontend/src/components/charts/MetricSparkline.tsx`
     - Single-column charts at Mobile; give `MetricSparkline` an accessible text alternative including latest value, unit, and timestamp; render a persistent synthetic-trace label; normalize WebSocket state to three mutually distinct connection treatments updated within 1s. Remove endpoint URL strings.
     - _Requirements: 4.5, 6.9, 7.6, 7.7, 7.8_
 
-  - [ ] 16.2 Write property test for chart text alternative
+  - [x] 16.2 Write property test for chart text alternative
     - **Property 9: Chart text alternative includes latest value, unit, and timestamp**
     - **Validates: Requirements 6.9**
 
-  - [ ] 16.3 Write property test for synthetic-trace labeling
+  - [x] 16.3 Write property test for synthetic-trace labeling
     - **Property 12: Synthetic telemetry is always labeled when present**
     - **Validates: Requirements 7.6**
 
-  - [ ] 16.4 Write property test for connection-state treatments
+  - [x] 16.4 Write property test for connection-state treatments
     - **Property 13: Connection states map to three mutually distinct treatments**
     - **Validates: Requirements 7.7**
 
-- [ ] 17. Redesign the Alerts & Maintenance route
-  - [ ] 17.1 Refactor `frontend/src/pages/AlertsMaintenancePage.tsx`
+- [x] 17. Redesign the Alerts & Maintenance route
+  - [x] 17.1 Refactor `frontend/src/pages/AlertsMaintenancePage.tsx`
     - Replace literal-styled markup with primitives inside `PageContainer`; use `StatusBadge` for alert severity and maintenance status; remove endpoint URL strings.
     - _Requirements: 3.3, 3.8, 4.1, 4.2, 6.3, 7.1, 7.3, 7.4, 7.8_
 
-- [ ] 18. Redesign the Local Config route
-  - [ ] 18.1 Refactor `frontend/src/pages/ConfigPage.tsx`
+- [x] 18. Redesign the Local Config route
+  - [x] 18.1 Refactor `frontend/src/pages/ConfigPage.tsx`
     - Use `Field`/`Button` primitives with `aria-describedby` validation messaging inside `PageContainer`; keep internal endpoint URLs presented here only.
     - _Requirements: 3.3, 3.8, 6.8, 7.8_
 
-  - [ ] 18.2 Write property test for endpoint-URL confinement
+  - [x] 18.2 Write property test for endpoint-URL confinement
     - **Property 14: Endpoint URLs are confined to the Local Config route**
     - **Validates: Requirements 7.8**
 
-- [ ] 19. Harden global accessibility behavior
-  - [ ] 19.1 Apply focus, keyboard, and reduced-motion treatments
+- [x] 19. Harden global accessibility behavior
+  - [x] 19.1 Apply focus, keyboard, and reduced-motion treatments
     - Add token-driven visible focus indicators (>= 3:1), ensure full keyboard operability with no focus traps across all interactive elements, and disable non-essential animation under `prefers-reduced-motion`.
     - _Requirements: 6.4, 6.10, 6.11, 6.12_
 
-  - [ ] 19.2 Write automated accessibility tests per route
+  - [x] 19.2 Write automated accessibility tests per route
     - Run `jest-axe` against each of the four redesigned routes and assert no violations.
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.11, 6.12_
 
-- [ ] 20. Integrate and wire the application shell
-  - [ ] 20.1 Wire providers and shell into `frontend/src/App.tsx` and `frontend/src/main.tsx`
+- [x] 20. Integrate and wire the application shell
+  - [x] 20.1 Wire providers and shell into `frontend/src/App.tsx` and `frontend/src/main.tsx`
     - Mount `ThemeProvider` and `LiveRegionProvider` at the root, replace `AppShell` with `NavigationShell`, and route the four pages through `PageContainer`.
     - _Requirements: 5.1, 5.2, 8.1, 8.5_
 
-  - [ ] 20.2 Write integration test for cross-route theme switching
+  - [x] 20.2 Write integration test for cross-route theme switching
     - Verify selecting a theme applies to all four routes within the budget without a reload.
     - _Requirements: 8.5_
 
-- [ ] 21. Final checkpoint - Ensure all tests pass
+- [x] 21. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

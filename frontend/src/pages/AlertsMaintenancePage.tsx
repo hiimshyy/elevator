@@ -1,5 +1,15 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { PageContainer, ResponsiveGrid } from "../components/layout/PageContainer";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { DataState } from "../components/ui/DataState";
+import { Select, Textarea, TextInput } from "../components/ui/Field";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import {
+  mapAlertSeverityToState,
+  mapMaintenanceStatusToState,
+} from "../components/ui/statusState";
 import {
   AlertRecord,
   ElevatorSummary,
@@ -9,9 +19,39 @@ import {
   listAlerts,
   listElevators,
   listMaintenance,
-  updateMaintenance
+  updateMaintenance,
 } from "../lib/api";
 import { useLocalConfig } from "../lib/localConfig";
+import { useViewState } from "../lib/viewState";
+
+// =============================================================================
+// Alerts & Maintenance route — refactored to consume redesigned UI primitives.
+//
+// Requirements covered:
+//   - 3.3 : presentation references Design_Token entries (via primitives that
+//           are 100% token-driven) instead of hard-coded literals.
+//   - 3.8 : route consumes the reusable Card / StatusBadge / Button / DataState
+//           / Select / TextInput / Textarea primitives.
+//   - 4.1 : single-column layout at Mobile (PageContainer + ResponsiveGrid
+//           derive column count from useBreakpoint()'s descriptor).
+//   - 4.2 : at most two columns at Tablet (same descriptor; tablet
+//           columnCount = 2).
+//   - 6.3 : every Status_Indicator (alert severity badge, maintenance status
+//           badge, summary pill) is rendered through StatusBadge, which conveys
+//           state with color + icon + label + shape.
+//   - 7.1 : loading indicator surfaced via DataState within 300ms — timing
+//           guarantee owned by useViewState's loading-indicator grace window.
+//   - 7.3 : empty state names the missing data via DataState.
+//   - 7.4 : error state names the view + reason and presents a Retry control
+//           via DataState; prior data preserved by useViewState's failError
+//           transition.
+//   - 7.8 : no internal endpoint URLs appear in this route — the legacy
+//           meta lines that surfaced the API base URL have been removed.
+//           Endpoint URLs are confined to the Local Config route.
+// =============================================================================
+
+/** Human-readable label used in error messages and headings. */
+const VIEW_LABEL = "Alerts & Maintenance";
 
 const urgencyOptions = ["routine", "soon", "urgent", "immediate"] as const;
 const maintenanceStatusOptions = ["pending", "scheduled", "completed", "cancelled"] as const;
@@ -29,7 +69,7 @@ function formatTimestamp(value: string | null): string {
 
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -40,36 +80,8 @@ function formatDate(value: string): string {
   }
 
   return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium"
+    dateStyle: "medium",
   }).format(date);
-}
-
-function getAlertTone(alert: AlertRecord): string {
-  if (alert.severity === "EMERGENCY") {
-    return "status-badge status-badge--critical";
-  }
-
-  if (alert.severity === "CRITICAL") {
-    return "status-badge status-badge--warning";
-  }
-
-  return "status-badge status-badge--healthy";
-}
-
-function getMaintenanceTone(record: MaintenanceRecord): string {
-  if (record.status === "completed") {
-    return "status-badge status-badge--healthy";
-  }
-
-  if (record.status === "cancelled") {
-    return "status-badge status-badge--critical";
-  }
-
-  if (record.status === "scheduled") {
-    return "status-badge status-badge--warning";
-  }
-
-  return "status-badge";
 }
 
 function getDefaultRecommendedDate(): string {
@@ -78,73 +90,71 @@ function getDefaultRecommendedDate(): string {
   return nextWeek.toISOString().slice(0, 10);
 }
 
+/** Derive the summary pill state from the view-data state. */
+function summaryBadgeState(
+  state: "loading" | "empty" | "error" | "populated",
+  hasPriorData: boolean,
+): "healthy" | "warning" | "critical" | "unknown" {
+  if (state === "error") {
+    return hasPriorData ? "warning" : "critical";
+  }
+  if (state === "empty") {
+    return "unknown";
+  }
+  if (state === "loading" && !hasPriorData) {
+    return "unknown";
+  }
+  return "healthy";
+}
+
+function summaryBadgeLabel(
+  state: "loading" | "empty" | "error" | "populated",
+  alertCount: number,
+  maintenanceCount: number,
+  hasPriorData: boolean,
+): string {
+  if (state === "loading" && !hasPriorData) {
+    return "Loading workflows…";
+  }
+  if (state === "error" && !hasPriorData) {
+    return "Load failed";
+  }
+  if (state === "error") {
+    return `Stale data (${alertCount} alerts / ${maintenanceCount} tasks)`;
+  }
+  if (state === "empty") {
+    return "No alerts or maintenance";
+  }
+  return `${alertCount} alerts / ${maintenanceCount} tasks`;
+}
+
+interface AlertsMaintenanceData {
+  alerts: AlertRecord[];
+  maintenance: MaintenanceRecord[];
+}
+
 export function AlertsMaintenancePage(): JSX.Element {
   const { apiBaseUrl, apiKey } = useLocalConfig();
   const [elevators, setElevators] = useState<ElevatorSummary[]>([]);
-  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
-  const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
   const [selectedElevator, setSelectedElevator] = useState("all");
   const [selectedSeverity, setSelectedSeverity] = useState("all");
   const [selectedMaintenanceStatus, setSelectedMaintenanceStatus] = useState("all");
   const [includeAcknowledged, setIncludeAcknowledged] = useState(true);
   const [technicianName, setTechnicianName] = useState("ops-01");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [busyAlertId, setBusyAlertId] = useState<number | null>(null);
   const [busyMaintenanceId, setBusyMaintenanceId] = useState<number | null>(null);
   const [isCreatingMaintenance, setIsCreatingMaintenance] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [maintenanceDraft, setMaintenanceDraft] = useState({
     elevatorId: "",
     recommendedDate: getDefaultRecommendedDate(),
     urgency: "soon",
-    reason: ""
+    reason: "",
   });
 
-  const loadData = useCallback(
-    async (signal?: AbortSignal): Promise<void> => {
-      const elevatorFilter = selectedElevator === "all" ? undefined : selectedElevator;
-      const severityFilter = selectedSeverity === "all" ? undefined : selectedSeverity;
-      const maintenanceStatusFilter =
-        selectedMaintenanceStatus === "all" ? undefined : selectedMaintenanceStatus;
-      const acknowledgedFilter = includeAcknowledged ? undefined : false;
-
-      try {
-        const [nextAlerts, nextMaintenance] = await Promise.all([
-          listAlerts(
-            {
-              elevatorId: elevatorFilter,
-              severity: severityFilter,
-              acknowledged: acknowledgedFilter
-            },
-            signal
-          ),
-          listMaintenance(
-            {
-              elevatorId: elevatorFilter,
-              status: maintenanceStatusFilter
-            },
-            signal
-          )
-        ]);
-
-        setAlerts(nextAlerts);
-        setMaintenance(nextMaintenance);
-        setError(null);
-        setLastUpdatedAt(new Date().toISOString());
-      } catch (nextError) {
-        if (!signal?.aborted) {
-          setError(nextError instanceof Error ? nextError.message : "Unable to load operations data");
-        }
-      } finally {
-        if (!signal?.aborted) {
-          setIsLoading(false);
-        }
-      }
-    },
-    [includeAcknowledged, selectedElevator, selectedMaintenanceStatus, selectedSeverity]
-  );
-
+  // -------------------------------------------------------------------------
+  // Load elevator options for dropdown (separate lifecycle from main data)
+  // -------------------------------------------------------------------------
   useEffect(() => {
     const controller = new AbortController();
 
@@ -154,12 +164,13 @@ export function AlertsMaintenancePage(): JSX.Element {
         setElevators(nextElevators);
         setMaintenanceDraft((current) => ({
           ...current,
-          elevatorId: current.elevatorId || nextElevators[0]?.id || ""
+          elevatorId: current.elevatorId || nextElevators[0]?.id || "",
         }));
       } catch (nextError) {
         if (!controller.signal.aborted) {
-          setError(nextError instanceof Error ? nextError.message : "Unable to load elevators");
-          setIsLoading(false);
+          setActionError(
+            nextError instanceof Error ? nextError.message : "Unable to load elevators",
+          );
         }
       }
     };
@@ -169,30 +180,80 @@ export function AlertsMaintenancePage(): JSX.Element {
     return () => controller.abort();
   }, [apiBaseUrl, apiKey]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setIsLoading(true);
-    void loadData(controller.signal);
-    return () => controller.abort();
-  }, [apiBaseUrl, apiKey, loadData]);
+  // -------------------------------------------------------------------------
+  // Main data lifecycle via useViewState (alerts + maintenance combined)
+  // -------------------------------------------------------------------------
+  const view = useViewState<AlertsMaintenanceData>({
+    viewLabel: VIEW_LABEL,
+    fetcher: async (signal) => {
+      const elevatorFilter = selectedElevator === "all" ? undefined : selectedElevator;
+      const severityFilter = selectedSeverity === "all" ? undefined : selectedSeverity;
+      const maintenanceStatusFilter =
+        selectedMaintenanceStatus === "all" ? undefined : selectedMaintenanceStatus;
+      const acknowledgedFilter = includeAcknowledged ? undefined : false;
+
+      const [nextAlerts, nextMaintenance] = await Promise.all([
+        listAlerts(
+          {
+            elevatorId: elevatorFilter,
+            severity: severityFilter,
+            acknowledged: acknowledgedFilter,
+          },
+          signal,
+        ),
+        listMaintenance(
+          {
+            elevatorId: elevatorFilter,
+            status: maintenanceStatusFilter,
+          },
+          signal,
+        ),
+      ]);
+
+      return { alerts: nextAlerts, maintenance: nextMaintenance };
+    },
+    isEmpty: (data) => data.alerts.length === 0 && data.maintenance.length === 0,
+    deps: [
+      apiBaseUrl,
+      apiKey,
+      selectedElevator,
+      selectedSeverity,
+      selectedMaintenanceStatus,
+      includeAcknowledged,
+    ],
+  });
+
+  const alerts = view.data?.alerts ?? [];
+  const maintenance = view.data?.maintenance ?? [];
+  const hasPriorData = alerts.length > 0 || maintenance.length > 0;
 
   const openAlerts = useMemo(
     () => alerts.filter((alert) => alert.acknowledged === 0).length,
-    [alerts]
+    [alerts],
   );
   const criticalAlerts = useMemo(
     () => alerts.filter((alert) => alert.severity !== "WARNING" && alert.acknowledged === 0).length,
-    [alerts]
+    [alerts],
   );
   const pendingMaintenance = useMemo(
     () => maintenance.filter((record) => record.status === "pending").length,
-    [maintenance]
+    [maintenance],
   );
   const scheduledMaintenance = useMemo(
     () => maintenance.filter((record) => record.status === "scheduled").length,
-    [maintenance]
+    [maintenance],
   );
 
+  // -------------------------------------------------------------------------
+  // Reload helper (for actions that mutate data and need to refresh)
+  // -------------------------------------------------------------------------
+  const reloadData = useCallback(() => {
+    view.retry();
+  }, [view]);
+
+  // -------------------------------------------------------------------------
+  // Action handlers
+  // -------------------------------------------------------------------------
   const handleAcknowledge = async (alertId: number | null): Promise<void> => {
     if (alertId === null) {
       return;
@@ -200,16 +261,17 @@ export function AlertsMaintenancePage(): JSX.Element {
 
     const technician = technicianName.trim();
     if (!technician) {
-      setError("Technician name is required to acknowledge an alert.");
+      setActionError("Technician name is required to acknowledge an alert.");
       return;
     }
 
     try {
       setBusyAlertId(alertId);
+      setActionError(null);
       await acknowledgeAlert(alertId, technician);
-      await loadData();
+      reloadData();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to acknowledge alert");
+      setActionError(nextError instanceof Error ? nextError.message : "Unable to acknowledge alert");
     } finally {
       setBusyAlertId(null);
     }
@@ -219,26 +281,27 @@ export function AlertsMaintenancePage(): JSX.Element {
     event.preventDefault();
 
     if (!maintenanceDraft.elevatorId || !maintenanceDraft.reason.trim()) {
-      setError("Maintenance requires an elevator and a reason.");
+      setActionError("Maintenance requires an elevator and a reason.");
       return;
     }
 
     try {
       setIsCreatingMaintenance(true);
+      setActionError(null);
       await createMaintenance({
         elevator_id: maintenanceDraft.elevatorId,
         recommended_date: maintenanceDraft.recommendedDate,
         urgency: maintenanceDraft.urgency,
-        reason: maintenanceDraft.reason.trim()
+        reason: maintenanceDraft.reason.trim(),
       });
       setMaintenanceDraft((current) => ({
         ...current,
         reason: "",
-        recommendedDate: getDefaultRecommendedDate()
+        recommendedDate: getDefaultRecommendedDate(),
       }));
-      await loadData();
+      reloadData();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to create maintenance");
+      setActionError(nextError instanceof Error ? nextError.message : "Unable to create maintenance");
     } finally {
       setIsCreatingMaintenance(false);
     }
@@ -246,7 +309,7 @@ export function AlertsMaintenancePage(): JSX.Element {
 
   const handleMaintenanceStatus = async (
     maintenanceId: number | null,
-    status: string
+    status: string,
   ): Promise<void> => {
     if (maintenanceId === null) {
       return;
@@ -256,92 +319,393 @@ export function AlertsMaintenancePage(): JSX.Element {
 
     try {
       setBusyMaintenanceId(maintenanceId);
+      setActionError(null);
       await updateMaintenance(maintenanceId, {
         status,
         technician: technician || undefined,
-        completedAt: status === "completed" ? new Date().toISOString() : undefined
+        completedAt: status === "completed" ? new Date().toISOString() : undefined,
       });
-      await loadData();
+      reloadData();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to update maintenance");
+      setActionError(
+        nextError instanceof Error ? nextError.message : "Unable to update maintenance",
+      );
     } finally {
       setBusyMaintenanceId(null);
     }
   };
 
+  // -------------------------------------------------------------------------
+  // Select options built from constants
+  // -------------------------------------------------------------------------
+  const elevatorSelectOptions = [
+    { value: "all", label: "All elevators" },
+    ...elevators.map((e) => ({ value: e.id, label: e.id })),
+  ];
+
+  const severitySelectOptions = [
+    { value: "all", label: "All severities" },
+    ...severityOptions.map((s) => ({ value: s, label: s })),
+  ];
+
+  const maintenanceStatusSelectOptions = [
+    { value: "all", label: "All statuses" },
+    ...maintenanceStatusOptions.map((s) => ({ value: s, label: s })),
+  ];
+
+  const urgencySelectOptions = urgencyOptions.map((u) => ({ value: u, label: u }));
+
+  const elevatorFormOptions = elevators.map((e) => ({ value: e.id, label: e.id }));
+
+  // -------------------------------------------------------------------------
+  // Body branching — DataState owns loading / empty / error presentations
+  // -------------------------------------------------------------------------
+  let body: JSX.Element | null = null;
+
+  if (view.state === "loading" && !hasPriorData) {
+    body = view.showLoadingIndicator ? (
+      <DataState state="loading" viewLabel={VIEW_LABEL} />
+    ) : null;
+  } else if (view.state === "error" && !hasPriorData) {
+    body = (
+      <DataState
+        state="error"
+        viewLabel={VIEW_LABEL}
+        errorReason={view.error ?? undefined}
+        onRetry={view.retry}
+      />
+    );
+  } else if (view.state === "empty") {
+    body = (
+      <DataState
+        state="empty"
+        viewLabel={VIEW_LABEL}
+        missingDataLabel="alerts or maintenance records"
+      />
+    );
+  } else {
+    // "populated", or "loading" / "error" with prior data preserved.
+    body = (
+      <>
+        {view.state === "error" ? (
+          <DataState
+            state="error"
+            viewLabel={VIEW_LABEL}
+            errorReason={view.error ?? undefined}
+            onRetry={view.retry}
+          />
+        ) : null}
+
+        <ResponsiveGrid maxColumns={2}>
+          {/* Alerts Inbox Panel */}
+          <Card
+            elevation="raised"
+            headingLevel={3}
+            header={
+              <>
+                <div>
+                  <span className="page__eyebrow">Workflow</span>
+                  <h3 className="ui-card__title">Alerts Inbox</h3>
+                </div>
+                <StatusBadge
+                  state={openAlerts > 0 ? "warning" : "healthy"}
+                  labelOverride={`${openAlerts} open`}
+                />
+              </>
+            }
+          >
+            {alerts.length === 0 ? (
+              <DataState
+                state="empty"
+                viewLabel="Alerts"
+                missingDataLabel="alerts matching the current filter"
+              />
+            ) : (
+              <div className="stack">
+                {alerts.map((alert) => {
+                  const isBusy = busyAlertId === alert.id;
+                  const isAcknowledged = alert.acknowledged !== 0;
+
+                  return (
+                    <Card
+                      key={`${alert.id}-${alert.timestamp}`}
+                      elevation="flat"
+                      headingLevel={4}
+                      header={
+                        <>
+                          <div>
+                            <span className="page__eyebrow">{alert.elevator_id}</span>
+                            <h4 className="ui-card__title">{alert.message}</h4>
+                          </div>
+                          <StatusBadge state={mapAlertSeverityToState(alert.severity)} />
+                        </>
+                      }
+                    >
+                      <dl className="metric-list">
+                        <div>
+                          <dt>Raised</dt>
+                          <dd>{formatTimestamp(alert.timestamp)}</dd>
+                        </div>
+                        <div>
+                          <dt>Status</dt>
+                          <dd>{isAcknowledged ? "Acknowledged" : "Awaiting action"}</dd>
+                        </div>
+                      </dl>
+
+                      {isAcknowledged ? (
+                        <p>
+                          Acknowledged by <strong>{alert.acknowledged_by ?? "Unknown"}</strong> at{" "}
+                          <strong>{formatTimestamp(alert.acknowledged_at)}</strong>.
+                        </p>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          disabled={isBusy}
+                          onClick={() => void handleAcknowledge(alert.id)}
+                        >
+                          {isBusy ? "Acknowledging…" : "Acknowledge alert"}
+                        </Button>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          {/* Maintenance Board Panel */}
+          <Card
+            elevation="raised"
+            headingLevel={3}
+            header={
+              <>
+                <div>
+                  <span className="page__eyebrow">Workflow</span>
+                  <h3 className="ui-card__title">Maintenance Board</h3>
+                </div>
+                <StatusBadge
+                  state={pendingMaintenance > 0 ? "warning" : "healthy"}
+                  labelOverride={`${maintenance.length} records`}
+                />
+              </>
+            }
+          >
+            <form
+              className="maintenance-form"
+              onSubmit={(event) => void handleMaintenanceSubmit(event)}
+            >
+              <ResponsiveGrid maxColumns={3}>
+                <Select
+                  label="Elevator"
+                  value={maintenanceDraft.elevatorId}
+                  options={elevatorFormOptions}
+                  onChange={(event) =>
+                    setMaintenanceDraft((current) => ({
+                      ...current,
+                      elevatorId: event.target.value,
+                    }))
+                  }
+                />
+
+                <TextInput
+                  label="Recommended date"
+                  type="text"
+                  value={maintenanceDraft.recommendedDate}
+                  onChange={(event) =>
+                    setMaintenanceDraft((current) => ({
+                      ...current,
+                      recommendedDate: event.target.value,
+                    }))
+                  }
+                  placeholder="YYYY-MM-DD"
+                />
+
+                <Select
+                  label="Urgency"
+                  value={maintenanceDraft.urgency}
+                  options={urgencySelectOptions}
+                  onChange={(event) =>
+                    setMaintenanceDraft((current) => ({
+                      ...current,
+                      urgency: event.target.value,
+                    }))
+                  }
+                />
+              </ResponsiveGrid>
+
+              <Textarea
+                label="Reason"
+                rows={3}
+                value={maintenanceDraft.reason}
+                onChange={(event) =>
+                  setMaintenanceDraft((current) => ({
+                    ...current,
+                    reason: event.target.value,
+                  }))
+                }
+                placeholder="Describe why this maintenance task is needed"
+              />
+
+              <Button variant="primary" type="submit" disabled={isCreatingMaintenance}>
+                {isCreatingMaintenance ? "Creating…" : "Create maintenance task"}
+              </Button>
+            </form>
+
+            {maintenance.length === 0 ? (
+              <DataState
+                state="empty"
+                viewLabel="Maintenance"
+                missingDataLabel="maintenance records matching the current filter"
+              />
+            ) : (
+              <div className="stack">
+                {maintenance.map((record) => {
+                  const isBusy = busyMaintenanceId === record.id;
+
+                  return (
+                    <Card
+                      key={`${record.id}-${record.created_at}`}
+                      elevation="flat"
+                      headingLevel={4}
+                      header={
+                        <>
+                          <div>
+                            <span className="page__eyebrow">{record.elevator_id}</span>
+                            <h4 className="ui-card__title">{record.reason}</h4>
+                          </div>
+                          <StatusBadge state={mapMaintenanceStatusToState(record.status)} />
+                        </>
+                      }
+                      footer={
+                        <div className="action-row">
+                          {record.status !== "scheduled" ? (
+                            <Button
+                              variant="secondary"
+                              disabled={isBusy}
+                              onClick={() => void handleMaintenanceStatus(record.id, "scheduled")}
+                            >
+                              Schedule
+                            </Button>
+                          ) : null}
+
+                          {record.status !== "completed" ? (
+                            <Button
+                              variant="primary"
+                              disabled={isBusy}
+                              onClick={() => void handleMaintenanceStatus(record.id, "completed")}
+                            >
+                              Complete
+                            </Button>
+                          ) : null}
+
+                          {record.status !== "cancelled" ? (
+                            <Button
+                              variant="ghost"
+                              disabled={isBusy}
+                              onClick={() => void handleMaintenanceStatus(record.id, "cancelled")}
+                            >
+                              Cancel
+                            </Button>
+                          ) : null}
+                        </div>
+                      }
+                    >
+                      <dl className="metric-list">
+                        <div>
+                          <dt>Recommended</dt>
+                          <dd>{formatDate(record.recommended_date)}</dd>
+                        </div>
+                        <div>
+                          <dt>Urgency</dt>
+                          <dd>{record.urgency}</dd>
+                        </div>
+                        <div>
+                          <dt>Created</dt>
+                          <dd>{formatTimestamp(record.created_at)}</dd>
+                        </div>
+                        <div>
+                          <dt>Technician</dt>
+                          <dd>{record.technician ?? "Unassigned"}</dd>
+                        </div>
+                      </dl>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </ResponsiveGrid>
+      </>
+    );
+  }
+
   return (
-    <section className="page">
+    <PageContainer>
       <header className="page__header">
         <div>
           <span className="page__eyebrow">Route</span>
-          <h2>Alerts & Maintenance</h2>
+          <h2>Alerts &amp; Maintenance</h2>
         </div>
-        <div className="status-pill">
-          {isLoading ? "Loading workflows" : `${alerts.length} alerts / ${maintenance.length} tasks`}
-        </div>
+        <StatusBadge
+          state={summaryBadgeState(view.state, hasPriorData)}
+          labelOverride={summaryBadgeLabel(
+            view.state,
+            alerts.length,
+            maintenance.length,
+            hasPriorData,
+          )}
+        />
       </header>
 
-      <div className="toolbar">
-        <div className="toolbar__fields">
-          <label className="field">
-            <span>Elevator scope</span>
-            <select
-              value={selectedElevator}
-              onChange={(event) => setSelectedElevator(event.target.value)}
-            >
-              <option value="all">All elevators</option>
-              {elevators.map((elevator) => (
-                <option key={elevator.id} value={elevator.id}>
-                  {elevator.id}
-                </option>
-              ))}
-            </select>
-          </label>
+      {/* Summary cards strip */}
+      <ResponsiveGrid maxColumns={4}>
+        <Card title="Open alerts" headingLevel={3} elevation="flat">
+          <strong>{openAlerts}</strong>
+        </Card>
+        <Card title="Critical or emergency" headingLevel={3} elevation="flat">
+          <strong>{criticalAlerts}</strong>
+        </Card>
+        <Card title="Pending maintenance" headingLevel={3} elevation="flat">
+          <strong>{pendingMaintenance}</strong>
+        </Card>
+        <Card title="Scheduled maintenance" headingLevel={3} elevation="flat">
+          <strong>{scheduledMaintenance}</strong>
+        </Card>
+      </ResponsiveGrid>
 
-          <label className="field">
-            <span>Alert severity</span>
-            <select
-              value={selectedSeverity}
-              onChange={(event) => setSelectedSeverity(event.target.value)}
-            >
-              <option value="all">All severities</option>
-              {severityOptions.map((severity) => (
-                <option key={severity} value={severity}>
-                  {severity}
-                </option>
-              ))}
-            </select>
-          </label>
+      {/* Filter toolbar */}
+      <Card title="Filters" headingLevel={3} elevation="flat">
+        <ResponsiveGrid maxColumns={4}>
+          <Select
+            label="Elevator scope"
+            value={selectedElevator}
+            options={elevatorSelectOptions}
+            onChange={(event) => setSelectedElevator(event.target.value)}
+          />
 
-          <label className="field">
-            <span>Maintenance status</span>
-            <select
-              value={selectedMaintenanceStatus}
-              onChange={(event) => setSelectedMaintenanceStatus(event.target.value)}
-            >
-              <option value="all">All statuses</option>
-              {maintenanceStatusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="Alert severity"
+            value={selectedSeverity}
+            options={severitySelectOptions}
+            onChange={(event) => setSelectedSeverity(event.target.value)}
+          />
 
-          <label className="field">
-            <span>Technician</span>
-            <input
-              value={technicianName}
-              onChange={(event) => setTechnicianName(event.target.value)}
-              placeholder="ops-01"
-              type="text"
-            />
-          </label>
-        </div>
+          <Select
+            label="Maintenance status"
+            value={selectedMaintenanceStatus}
+            options={maintenanceStatusSelectOptions}
+            onChange={(event) => setSelectedMaintenanceStatus(event.target.value)}
+          />
+
+          <TextInput
+            label="Technician"
+            value={technicianName}
+            onChange={(event) => setTechnicianName(event.target.value)}
+            placeholder="ops-01"
+          />
+        </ResponsiveGrid>
 
         <div className="toolbar__meta toolbar__meta--inline">
-          <span>Alerts: {apiBaseUrl}/alerts</span>
-          <span>Maintenance: {apiBaseUrl}/maintenance</span>
           <label className="checkbox">
             <input
               checked={includeAcknowledged}
@@ -350,255 +714,20 @@ export function AlertsMaintenancePage(): JSX.Element {
             />
             <span>Include acknowledged alerts</span>
           </label>
-          <span>{lastUpdatedAt ? `Last refresh: ${formatTimestamp(lastUpdatedAt)}` : "No refresh yet"}</span>
+          <span>
+            {view.lastUpdatedAt
+              ? `Last refresh: ${formatTimestamp(view.lastUpdatedAt)}`
+              : "No refresh yet"}
+          </span>
         </div>
-      </div>
+      </Card>
 
-      <div className="summary-strip">
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Open alerts</span>
-          <strong>{openAlerts}</strong>
-        </article>
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Critical or emergency</span>
-          <strong>{criticalAlerts}</strong>
-        </article>
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Pending maintenance</span>
-          <strong>{pendingMaintenance}</strong>
-        </article>
-        <article className="summary-card">
-          <span className="fleet-card__eyebrow">Scheduled maintenance</span>
-          <strong>{scheduledMaintenance}</strong>
-        </article>
-      </div>
+      {/* Action error banner */}
+      {actionError ? (
+        <div className="callout callout--error" role="alert">{actionError}</div>
+      ) : null}
 
-      {error ? <div className="callout callout--error">{error}</div> : null}
-
-      {isLoading ? <div className="callout">Loading alerts and maintenance workflows...</div> : null}
-
-      <div className="operations-grid">
-        <section className="panel">
-          <div className="panel__header">
-            <div>
-              <span className="fleet-card__eyebrow">Workflow</span>
-              <h3>Alerts Inbox</h3>
-            </div>
-            <span className="status-pill">{openAlerts} open</span>
-          </div>
-
-          {!isLoading && alerts.length === 0 ? (
-            <div className="callout">No alerts matched the current filter set.</div>
-          ) : (
-            <div className="stack">
-              {alerts.map((alert) => {
-                const isBusy = busyAlertId === alert.id;
-                const isAcknowledged = alert.acknowledged !== 0;
-
-                return (
-                  <article key={`${alert.id}-${alert.timestamp}`} className="workflow-card">
-                    <div className="workflow-card__header">
-                      <div>
-                        <span className="fleet-card__eyebrow">{alert.elevator_id}</span>
-                        <h4>{alert.message}</h4>
-                      </div>
-                      <span className={getAlertTone(alert)}>{alert.severity}</span>
-                    </div>
-
-                    <dl className="workflow-card__meta">
-                      <div>
-                        <dt>Raised</dt>
-                        <dd>{formatTimestamp(alert.timestamp)}</dd>
-                      </div>
-                      <div>
-                        <dt>Status</dt>
-                        <dd>{isAcknowledged ? "Acknowledged" : "Awaiting action"}</dd>
-                      </div>
-                    </dl>
-
-                    {isAcknowledged ? (
-                      <div className="callout">
-                        Acknowledged by <strong>{alert.acknowledged_by ?? "Unknown"}</strong> at{" "}
-                        <strong>{formatTimestamp(alert.acknowledged_at)}</strong>.
-                      </div>
-                    ) : (
-                      <button
-                        className="action-button"
-                        disabled={isBusy}
-                        onClick={() => void handleAcknowledge(alert.id)}
-                        type="button"
-                      >
-                        {isBusy ? "Acknowledging..." : "Acknowledge alert"}
-                      </button>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="panel">
-          <div className="panel__header">
-            <div>
-              <span className="fleet-card__eyebrow">Workflow</span>
-              <h3>Maintenance Board</h3>
-            </div>
-            <span className="status-pill">{maintenance.length} records</span>
-          </div>
-
-          <form className="maintenance-form" onSubmit={(event) => void handleMaintenanceSubmit(event)}>
-            <div className="form-grid">
-              <label className="field">
-                <span>Elevator</span>
-                <select
-                  value={maintenanceDraft.elevatorId}
-                  onChange={(event) =>
-                    setMaintenanceDraft((current) => ({
-                      ...current,
-                      elevatorId: event.target.value
-                    }))
-                  }
-                >
-                  {elevators.map((elevator) => (
-                    <option key={elevator.id} value={elevator.id}>
-                      {elevator.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field">
-                <span>Recommended date</span>
-                <input
-                  type="date"
-                  value={maintenanceDraft.recommendedDate}
-                  onChange={(event) =>
-                    setMaintenanceDraft((current) => ({
-                      ...current,
-                      recommendedDate: event.target.value
-                    }))
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Urgency</span>
-                <select
-                  value={maintenanceDraft.urgency}
-                  onChange={(event) =>
-                    setMaintenanceDraft((current) => ({
-                      ...current,
-                      urgency: event.target.value
-                    }))
-                  }
-                >
-                  {urgencyOptions.map((urgency) => (
-                    <option key={urgency} value={urgency}>
-                      {urgency}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <label className="field">
-              <span>Reason</span>
-              <textarea
-                rows={3}
-                value={maintenanceDraft.reason}
-                onChange={(event) =>
-                  setMaintenanceDraft((current) => ({
-                    ...current,
-                    reason: event.target.value
-                  }))
-                }
-                placeholder="Describe why this maintenance task is needed"
-              />
-            </label>
-
-            <button className="action-button" disabled={isCreatingMaintenance} type="submit">
-              {isCreatingMaintenance ? "Creating..." : "Create maintenance task"}
-            </button>
-          </form>
-
-          {!isLoading && maintenance.length === 0 ? (
-            <div className="callout">No maintenance records matched the current filter set.</div>
-          ) : (
-            <div className="stack">
-              {maintenance.map((record) => {
-                const isBusy = busyMaintenanceId === record.id;
-
-                return (
-                  <article key={`${record.id}-${record.created_at}`} className="workflow-card">
-                    <div className="workflow-card__header">
-                      <div>
-                        <span className="fleet-card__eyebrow">{record.elevator_id}</span>
-                        <h4>{record.reason}</h4>
-                      </div>
-                      <span className={getMaintenanceTone(record)}>{record.status}</span>
-                    </div>
-
-                    <dl className="workflow-card__meta">
-                      <div>
-                        <dt>Recommended</dt>
-                        <dd>{formatDate(record.recommended_date)}</dd>
-                      </div>
-                      <div>
-                        <dt>Urgency</dt>
-                        <dd>{record.urgency}</dd>
-                      </div>
-                      <div>
-                        <dt>Created</dt>
-                        <dd>{formatTimestamp(record.created_at)}</dd>
-                      </div>
-                      <div>
-                        <dt>Technician</dt>
-                        <dd>{record.technician ?? "Unassigned"}</dd>
-                      </div>
-                    </dl>
-
-                    <div className="action-row">
-                      {record.status !== "scheduled" ? (
-                        <button
-                          className="action-button action-button--secondary"
-                          disabled={isBusy}
-                          onClick={() => void handleMaintenanceStatus(record.id, "scheduled")}
-                          type="button"
-                        >
-                          Schedule
-                        </button>
-                      ) : null}
-
-                      {record.status !== "completed" ? (
-                        <button
-                          className="action-button"
-                          disabled={isBusy}
-                          onClick={() => void handleMaintenanceStatus(record.id, "completed")}
-                          type="button"
-                        >
-                          Complete
-                        </button>
-                      ) : null}
-
-                      {record.status !== "cancelled" ? (
-                        <button
-                          className="action-button action-button--ghost"
-                          disabled={isBusy}
-                          onClick={() => void handleMaintenanceStatus(record.id, "cancelled")}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-    </section>
+      {body}
+    </PageContainer>
   );
 }

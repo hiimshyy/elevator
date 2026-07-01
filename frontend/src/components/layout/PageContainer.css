@@ -1,0 +1,89 @@
+/* =============================================================================
+   PageContainer / ResponsiveGrid — token-driven responsive layout
+   Requirements: 4.1, 4.2, 4.3, 4.4, 4.6, 4.7, 4.8
+
+   All visual values reference design tokens defined in styles/tokens.css.
+   No hard-coded color literals; spacing and radius use --space-* / --radius-*.
+   The 1440px content cap and the column count are injected as CSS custom
+   properties (--page-container-max-width, --page-container-columns) from
+   PageContainer.tsx using the descriptor returned by useBreakpoint().
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Root wrapper
+   - width: 100%                 → never exceeds the parent (the
+                                   NavigationShell `<main>` region), so it
+                                   cannot introduce horizontal page scroll
+                                   at >= 320px (Req 4.4).
+   - max-width: var(...)          → reads the descriptor-supplied cap
+                                   (1440px at Large_Desktop, Req 4.3); falls
+                                   back to `none` when no cap applies
+                                   (mobile / tablet / desktop).
+   - margin-inline: auto          → centers the capped content region
+                                   horizontally at Large_Desktop (Req 4.3).
+   - box-sizing: border-box       → padding/borders never push the wrapper
+                                   beyond the parent width.
+   - min-width: 0                 → permits the wrapper to shrink below its
+                                   intrinsic content min-width, which is
+                                   what keeps the page horizontal-scroll
+                                   free at >= 320px (Req 4.4).
+   --------------------------------------------------------------------------- */
+.page-container {
+  display: block;
+  width: 100%;
+  max-width: var(--page-container-max-width, none);
+  margin-inline: auto;
+  box-sizing: border-box;
+  min-width: 0;
+  color: var(--color-text);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
+}
+
+/* ---------------------------------------------------------------------------
+   Sub-320 escape hatch (Req 4.8)
+   Permits horizontal page scroll on the container itself when the viewport
+   is narrower than the 320px supported minimum. The descriptor sets
+   `allowHorizontalScroll: true` only for that band, and PageContainer.tsx
+   mirrors the flag onto `data-allow-horizontal-scroll`.
+   --------------------------------------------------------------------------- */
+.page-container[data-allow-horizontal-scroll="true"] {
+  overflow-x: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   ResponsiveGrid — multi-column grid driven by --page-container-columns.
+
+   `repeat(var(--page-container-columns, 1), minmax(0, 1fr))`
+     - `var(..., 1)` falls back to a single column if the custom property
+       is missing for any reason, preserving the Mobile single-column
+       invariant (Req 4.1, 4.8).
+     - `minmax(0, 1fr)` is critical: without the explicit `0` minimum,
+       grid tracks would respect the intrinsic min-content width of their
+       children and overflow the wrapper, causing horizontal page scroll
+       at narrow widths (violating Req 4.4).
+
+   No JS animation is involved in transitions; pure CSS layout reflow stays
+   well within the 500ms budget (Req 4.7).
+   --------------------------------------------------------------------------- */
+.responsive-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(var(--page-container-columns, 1), minmax(0, 1fr));
+  /* min-width: 0 on the grid itself — same reasoning as on .page-container:
+     allows the grid to shrink below its content's intrinsic width so the
+     `minmax(0, 1fr)` clamp can actually take effect inside a parent flex
+     or grid context (e.g., when nested in the persistent-sidebar layout). */
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Direct grid children get min-width: 0 so any flex / grid descendants
+   honor the wrapper's width cap. Without this, long unbroken strings
+   (URLs, error messages) inside a Card could force a track wider than the
+   grid and re-introduce horizontal page scroll at >= 320px (Req 4.4).
+   --------------------------------------------------------------------------- */
+.responsive-grid > * {
+  min-width: 0;
+}

@@ -1,0 +1,260 @@
+/* =============================================================================
+   NavigationShell — Token-driven layout and visual treatment
+   Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.4, 6.5, 7.8
+   All values reference var(--token); no hard-coded color/size literals.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Root grid
+   - Collapsible (mobile/tablet): topbar on top, main below; sidebar overlays
+     as a drawer when expanded (Req 5.2, 5.3, 5.5).
+   - Persistent (desktop/large): topbar spans both columns; sidebar and main
+     share the second row (Req 5.1, 5.6).
+   --------------------------------------------------------------------------- */
+.navshell {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "topbar"
+    "main";
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family-base);
+}
+
+.navshell[data-nav-mode="persistent"] {
+  grid-template-columns: minmax(16rem, 18rem) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "topbar  topbar"
+    "sidebar main";
+}
+
+/* ---------------------------------------------------------------------------
+   Skip link — visually hidden until focused (WCAG 2.4.1 bypass blocks).
+   --------------------------------------------------------------------------- */
+.navshell__skip-link {
+  position: absolute;
+  top: calc(var(--space-3) * -10);
+  left: var(--space-3);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-accent);
+  color: var(--color-accent-on);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+  text-decoration: none;
+  transition: top var(--motion-fast) var(--easing-default);
+}
+
+.navshell__skip-link:focus,
+.navshell__skip-link:focus-visible {
+  top: var(--space-3);
+  outline: var(--border-width-focus) solid var(--color-accent-on);
+  outline-offset: var(--border-width-focus);
+}
+
+/* ---------------------------------------------------------------------------
+   Topbar — brand, theme toggle, optional menu button
+   --------------------------------------------------------------------------- */
+.navshell__topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-surface);
+  border-bottom: var(--border-width-thin) solid var(--color-border);
+  box-shadow: var(--elevation-1);
+}
+
+.navshell__brand {
+  display: grid;
+  gap: var(--space-1);
+  /* Brand pushes everything else to the right via auto-margins on siblings. */
+  margin-right: auto;
+}
+
+.navshell__brand-eyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.navshell__brand-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  line-height: var(--line-height-tight);
+}
+
+/* Menu control — Req 6.5 guarantees a 44x44px hit area. */
+.navshell__menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-touch-target-min);
+  min-height: var(--size-touch-target-min);
+  padding: var(--space-2);
+  border: var(--border-width-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--easing-default),
+    border-color var(--motion-fast) var(--easing-default);
+}
+
+.navshell__menu-button:hover {
+  background: var(--color-bg);
+}
+
+.navshell__menu-button:focus-visible {
+  outline: var(--border-width-focus) solid var(--color-accent);
+  outline-offset: var(--border-width-focus);
+}
+
+.navshell__menu-icon {
+  display: inline-flex;
+  line-height: 1;
+}
+
+.navshell__theme-toggle {
+  /* The ThemeToggle component owns its own size/style; this hook only
+     places it inside the topbar without overriding internal styles. */
+  flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Sidebar — persistent column on desktop, overlay drawer on mobile/tablet.
+   --------------------------------------------------------------------------- */
+.navshell__sidebar {
+  grid-area: sidebar;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border-right: var(--border-width-thin) solid var(--color-border);
+}
+
+/* Persistent mode: sidebar is always visible alongside main (Req 5.1, 5.6). */
+.navshell[data-nav-mode="persistent"] .navshell__sidebar {
+  display: block;
+  position: static;
+  inset: auto;
+  width: auto;
+  height: auto;
+  box-shadow: none;
+}
+
+/* Collapsible mode: sidebar hidden by default; overlays main when expanded.
+   Using `display: none` keeps the closed sidebar out of the layout (and the
+   tab order) until the user opens it via the menu control (Req 5.2). */
+.navshell[data-nav-mode="collapsible"] .navshell__sidebar {
+  display: none;
+}
+
+.navshell[data-nav-mode="collapsible"][data-expanded="true"] .navshell__sidebar {
+  display: block;
+  position: fixed;
+  /* Sit below the topbar; the topbar height varies with text but the
+     `var(--size-touch-target-min)` plus padding bound it safely. */
+  top: calc(var(--size-touch-target-min) + var(--space-6));
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: min(20rem, 100%);
+  height: auto;
+  box-shadow: var(--elevation-3);
+  overflow-y: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Navigation links
+   - Base: regular weight, neutral color, hidden rail indicator.
+   - Active: `aria-current="page"` (set automatically by NavLink) drives a
+     non-color distinction (rail indicator visible + bold weight) on top
+     of color, satisfying Req 5.7.
+   --------------------------------------------------------------------------- */
+.navshell__nav {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.navshell__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-touch-target-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--easing-default),
+    color var(--motion-fast) var(--easing-default);
+}
+
+.navshell__link:hover {
+  background: var(--color-bg);
+}
+
+.navshell__link:focus-visible {
+  outline: var(--border-width-focus) solid var(--color-accent);
+  outline-offset: var(--border-width-focus);
+}
+
+/* Active treatment — driven by `aria-current="page"` so the non-color
+   signal still applies even if the className-based "--active" modifier
+   were ever removed. Both the `.--active` class and the attribute
+   selector are applied for resilience. */
+.navshell__link[aria-current="page"],
+.navshell__link--active {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-accent);
+  background: var(--color-status-healthy);
+}
+
+/* Rail indicator — non-color signal of the active link (Req 5.7). */
+.navshell__link-rail {
+  flex-shrink: 0;
+  width: 4px;
+  height: 1.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  visibility: hidden;
+}
+
+.navshell__link[aria-current="page"] .navshell__link-rail,
+.navshell__link--active .navshell__link-rail {
+  visibility: visible;
+}
+
+.navshell__link-label {
+  /* Allow long labels to wrap without breaking the 44px row height. */
+  line-height: var(--line-height-tight);
+}
+
+/* ---------------------------------------------------------------------------
+   Main content region
+   --------------------------------------------------------------------------- */
+.navshell__main {
+  grid-area: main;
+  padding: var(--space-6);
+  outline: none;
+  min-width: 0;
+}
+
+.navshell__main:focus-visible {
+  outline: var(--border-width-focus) solid var(--color-accent);
+  outline-offset: calc(var(--border-width-focus) * -1);
+}
