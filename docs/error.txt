@@ -1,0 +1,67 @@
+ => ERROR [frontend build 6/6] RUN npm run build                          13.0s
+------
+ > [frontend build 6/6] RUN npm run build:
+0.725 
+0.725 > elevator-pdm-frontend@0.1.0 build
+0.725 > tsc -b && vite build
+0.725 
+12.76 src/a11y/contrast.property.test.ts(117,7): error TS2554: Expected 1 arguments, but got 2.
+12.76 src/lib/viewState.timing.test.ts(130,27): error TS2558: Expected 0-1 type arguments, but got 2.
+12.76 src/lib/viewState.timing.test.ts(140,9): error TS2322: Type 'Mock<[AbortSignal]>' is not assignable to type '(signal: AbortSignal) => Promise<string>'.
+12.76   Types of parameters 'args' and 'signal' are incompatible.
+12.76     Type '[signal: AbortSignal]' is not assignable to type 'never'.
+12.76 src/lib/viewState.timing.test.ts(219,27): error TS2558: Expected 0-1 type arguments, but got 2.
+12.76 src/lib/viewState.timing.test.ts(230,9): error TS2322: Type 'Mock<[AbortSignal]>' is not assignable to type '(signal: AbortSignal) => Promise<string>'.
+12.76   Types of parameters 'args' and 'signal' are incompatible.
+12.76     Type '[signal: AbortSignal]' is not assignable to type 'never'.
+12.76 src/lib/viewState.timing.test.ts(271,27): error TS2558: Expected 0-1 type arguments, but got 2.
+12.76 src/lib/viewState.timing.test.ts(271,60): error TS7006: Parameter 'signal' implicitly has an 'any' type.
+12.76 src/lib/viewState.timing.test.ts(288,9): error TS2322: Type 'Mock<[AbortSignal]>' is not assignable to type '(signal: AbortSignal) => Promise<string>'.
+12.76   Types of parameters 'args' and 'signal' are incompatible.
+12.76     Type '[signal: AbortSignal]' is not assignable to type 'never'.
+12.76 src/styles/tokenUsageEnforcement.test.ts(47,7): error TS6133: 'HARD_REM_RE' is declared but its value is never read.
+12.76 src/styles/tokenUsageEnforcement.test.ts(100,9): error TS2554: Expected 1 arguments, but got 2.
+12.76 src/styles/tokenUsageEnforcement.test.ts(108,9): error TS2554: Expected 1 arguments, but got 2.
+12.76 src/styles/tokenUsageEnforcement.test.ts(116,9): error TS2554: Expected 1 arguments, but got 2.
+12.76 src/styles/tokenUsageEnforcement.test.ts(124,9): error TS2554: Expected 1 arguments, but got 2.
+12.76 src/styles/tokenUsageEnforcement.test.ts(132,9): error TS2554: Expected 1 arguments, but got 2.
+12.76 src/styles/tokenUsageEnforcement.test.ts(140,9): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokenUsageEnforcement.test.ts(156,9): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokenUsageEnforcement.test.ts(166,9): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokenUsageEnforcement.test.ts(180,9): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokenUsageEnforcement.test.ts(189,9): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokenUsageEnforcement.test.ts(206,11): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokenUsageEnforcement.test.ts(219,11): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokens.test.ts(197,21): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokens.test.ts(198,21): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokens.test.ts(209,21): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokens.test.ts(210,21): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokens.test.ts(239,11): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/styles/tokens.test.ts(249,9): error TS2554: Expected 1 arguments, but got 2.
+12.77 src/theme/__tests__/crossRouteThemeSwitching.integration.test.tsx(22,31): error TS6133: 'within' is declared but its value is never read.
+------
+[+] up 0/4
+ ⠙ Image elevator-api           Building                                   48.1s
+ ⠙ Image elevator-alert-worker  Building                                   48.1s
+ ⠙ Image elevator-sensor-poller Building                                   48.1s
+ ⠙ Image elevator-frontend      Building                                   48.1s
+Dockerfile.frontend:9
+
+--------------------
+
+   7 |     
+
+   8 |     COPY frontend/ ./
+
+   9 | >>> RUN npm run build
+
+  10 |     
+
+  11 |     FROM node:20-alpine AS runtime
+
+--------------------
+
+target frontend: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
+
+
+
