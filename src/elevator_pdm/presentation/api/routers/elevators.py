@@ -109,6 +109,21 @@ def get_elevator(
     )
 
 
+@router.delete("/{elevator_id}", status_code=204)
+def delete_elevator(
+    elevator_id: str,
+    repo: ElevatorRepository = Depends(get_elevator_repository),
+):
+    """Delete an elevator by ID."""
+    existing = repo.get_by_id(elevator_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Elevator {elevator_id} not found",
+        )
+    repo.delete(elevator_id)
+
+
 @router.get("/{elevator_id}/readings", response_model=list[SensorReadingResponse])
 def get_readings(
     elevator_id: str,

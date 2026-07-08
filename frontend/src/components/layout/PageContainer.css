@@ -29,7 +29,9 @@
                                    free at >= 320px (Req 4.4).
    --------------------------------------------------------------------------- */
 .page-container {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   width: 100%;
   max-width: var(--page-container-max-width, none);
   margin-inline: auto;

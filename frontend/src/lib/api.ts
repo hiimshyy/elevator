@@ -122,6 +122,28 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   return requestJson<T>(path, { signal });
 }
 
+export interface CreateElevatorPayload {
+  id: string;
+  name: string;
+  location: string;
+  max_capacity_kg: number;
+  install_date: string;
+}
+
+export function deleteElevator(elevatorId: string): Promise<void> {
+  return requestJson<void>(`/elevators/${elevatorId}`, {
+    method: "DELETE",
+  });
+}
+
+export function createElevator(payload: CreateElevatorPayload): Promise<ElevatorSummary> {
+  return requestJson<ElevatorSummary>("/elevators/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listElevators(signal?: AbortSignal): Promise<ElevatorSummary[]> {
   return getJson<ElevatorSummary[]>("/elevators", signal);
 }

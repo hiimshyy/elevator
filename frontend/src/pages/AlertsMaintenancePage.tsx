@@ -493,6 +493,7 @@ export function AlertsMaintenancePage(): JSX.Element {
             <form
               className="maintenance-form"
               onSubmit={(event) => void handleMaintenanceSubmit(event)}
+              style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
             >
               <ResponsiveGrid maxColumns={3}>
                 <Select

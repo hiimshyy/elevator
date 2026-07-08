@@ -401,32 +401,17 @@ export function LiveMonitorPage(): JSX.Element {
         />
       </header>
 
-      {/* Elevator selector — uses the Field/Select primitive which
-          guarantees label association, 44px touch target, and validation
-          wiring. The primitive is required by the redesign in place of
-          the legacy .toolbar / .field literal markup. The endpoint URL
-          rows that previously accompanied the selector have been removed
-          (Requirement 7.8). */}
-      <ResponsiveGrid maxColumns={2}>
-        <Card elevation="flat">
-          <Select
-            label="Select elevator"
-            value={selectedElevator}
-            onChange={(event) => setSearchParams({ elevator: event.target.value })}
-            options={elevators.map((elevator) => ({
-              value: elevator.id,
-              label: elevator.id,
-            }))}
-          />
-        </Card>
-        <Card title="Signal source" headingLevel={3} elevation="flat">
-          <p>
-            {latestDisplayPoint?.source === "synthetic"
-              ? "Currently rendering an interpolated live trace."
-              : "Currently rendering the latest live packet."}
-          </p>
-        </Card>
-      </ResponsiveGrid>
+      <Card elevation="flat">
+        <Select
+          label="Select elevator"
+          value={selectedElevator}
+          onChange={(event) => setSearchParams({ elevator: event.target.value })}
+          options={elevators.map((elevator) => ({
+            value: elevator.id,
+            label: elevator.id,
+          }))}
+        />
+      </Card>
 
       {error ? (
         <DataState
@@ -454,20 +439,6 @@ export function LiveMonitorPage(): JSX.Element {
               display series contains any interpolated (synthetic) point.
               Rendered as its own Card so it stays visible independent of
               scroll position within the metric-banner cluster. */}
-          {hasSyntheticPoints ? (
-            <Card
-              elevation="flat"
-              className="live-monitor__synthetic-banner"
-              data-testid="live-monitor-synthetic-banner"
-            >
-              <p>
-                <strong>Synthetic interpolated trace visible.</strong> Charts
-                include one or more interpolated points generated between live
-                packets so the trend stays continuous. Interpolated segments are
-                labeled per chart.
-              </p>
-            </Card>
-          ) : null}
 
           <ResponsiveGrid maxColumns={3} aria-label="Live packet metrics">
             <Card title="Latest packet" headingLevel={3} elevation="flat">
@@ -488,9 +459,6 @@ export function LiveMonitorPage(): JSX.Element {
                   ? "Interpolated live trace"
                   : "Live packet"}
               </p>
-            </Card>
-            <Card title="Selected elevator" headingLevel={3} elevation="flat">
-              <p>{selectedElevator}</p>
             </Card>
           </ResponsiveGrid>
 

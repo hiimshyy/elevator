@@ -5,9 +5,10 @@ import { PageContainer, ResponsiveGrid } from "../components/layout/PageContaine
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { DataState } from "../components/ui/DataState";
+import { TextInput } from "../components/ui/Field";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { mapElevatorStatusToState } from "../components/ui/statusState";
-import { listElevators, type ElevatorSummary } from "../lib/api";
+import { createElevator, deleteElevator, listElevators, type ElevatorSummary } from "../lib/api";
 import { useLocalConfig } from "../lib/localConfig";
 import { useViewState } from "../lib/viewState";
 
@@ -111,9 +112,80 @@ function summaryBadgeLabel(
   return `${count} elevator${count === 1 ? "" : "s"} loaded`;
 }
 
+const EMPTY_FORM = {
+  id: "",
+  name: "",
+  location: "",
+  max_capacity_kg: "",
+  install_date: "",
+};
+
 export function FleetOverviewPage(): JSX.Element {
   const { apiBaseUrl, apiKey } = useLocalConfig();
   const navigate = useNavigate();
+
+  // -------------------------------------------------------------------------
+  // Add elevator form state
+  // -------------------------------------------------------------------------
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formErrors, setFormErrors] = useState<Partial<typeof EMPTY_FORM>>({});
+  const [submitState, setSubmitState] = useState<"idle" | "submitting" | "error">("idle");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  function validateForm(): Partial<typeof EMPTY_FORM> {
+    const errors: Partial<typeof EMPTY_FORM> = {};
+    if (!form.id.trim()) errors.id = "ID is required";
+    else if (!/^[a-z0-9-]+$/.test(form.id.trim())) errors.id = "Only lowercase letters, numbers, and hyphens";
+    if (!form.name.trim()) errors.name = "Name is required";
+    if (!form.location.trim()) errors.location = "Location is required";
+    if (!form.max_capacity_kg || isNaN(Number(form.max_capacity_kg)) || Number(form.max_capacity_kg) <= 0)
+      errors.max_capacity_kg = "Enter a positive number";
+    if (!form.install_date) errors.install_date = "Install date is required";
+    return errors;
+  }
+
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
+    setSubmitState("submitting");
+    setSubmitError(null);
+    try {
+      await createElevator({
+        id: form.id.trim(),
+        name: form.name.trim(),
+        location: form.location.trim(),
+        max_capacity_kg: Number(form.max_capacity_kg),
+        install_date: form.install_date,
+      });
+      setForm(EMPTY_FORM);
+      setFormOpen(false);
+      setSubmitState("idle");
+      setRefreshTick((prev) => prev + 1);
+    } catch (err) {
+      setSubmitState("error");
+      setSubmitError(err instanceof Error ? err.message : "Failed to create elevator");
+    }
+  }
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(elevatorId: string): Promise<void> {
+    if (!window.confirm(`Delete elevator ${elevatorId}? This cannot be undone.`)) return;
+    try {
+      setDeletingId(elevatorId);
+      await deleteElevator(elevatorId);
+      setRefreshTick((prev) => prev + 1);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to delete elevator");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   // Periodic background refresh — a tick state increments every
   // REFRESH_INTERVAL_MS and is included in useViewState's deps, which
@@ -207,16 +279,25 @@ export function FleetOverviewPage(): JSX.Element {
                   </>
                 }
                 footer={
-                  <Button
-                    variant="primary"
-                    onClick={() =>
-                      navigate(
-                        `/live?elevator=${encodeURIComponent(elevator.id)}`,
-                      )
-                    }
-                  >
-                    Open Live Monitor
-                  </Button>
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    <Button
+                      variant="primary"
+                      onClick={() =>
+                        navigate(
+                          `/live?elevator=${encodeURIComponent(elevator.id)}`,
+                        )
+                      }
+                    >
+                      Open Live Monitor
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={deletingId === elevator.id}
+                      onClick={() => void handleDelete(elevator.id)}
+                    >
+                      {deletingId === elevator.id ? "Deleting…" : "Delete"}
+                    </Button>
+                  </div>
                 }
               >
                 <dl className="metric-list">
@@ -272,6 +353,89 @@ export function FleetOverviewPage(): JSX.Element {
           </p>
         </Card>
       </ResponsiveGrid>
+
+      {/* Add elevator form */}
+      {!formOpen ? (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button variant="primary" onClick={() => setFormOpen(true)}>
+            Add elevator
+          </Button>
+        </div>
+      ) : (
+        <Card title="Add new elevator" headingLevel={3} elevation="flat">
+          <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4, 1rem)" }}>
+              <TextInput
+                label="Elevator ID"
+                name="id"
+                required
+                value={form.id}
+                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
+                validationMessage={formErrors.id}
+                helperText="e.g. elev-002"
+              />
+              <TextInput
+                label="Name"
+                name="name"
+                required
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                validationMessage={formErrors.name}
+              />
+              <TextInput
+                label="Location"
+                name="location"
+                required
+                value={form.location}
+                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                validationMessage={formErrors.location}
+              />
+              <TextInput
+                label="Max capacity (kg)"
+                name="max_capacity_kg"
+                required
+                value={form.max_capacity_kg}
+                onChange={(e) => setForm((f) => ({ ...f, max_capacity_kg: e.target.value }))}
+                validationMessage={formErrors.max_capacity_kg}
+              />
+              <TextInput
+                label="Install date"
+                name="install_date"
+                required
+                value={form.install_date}
+                onChange={(e) => setForm((f) => ({ ...f, install_date: e.target.value }))}
+                validationMessage={formErrors.install_date}
+                helperText="YYYY-MM-DD"
+              />
+            </div>
+
+            {submitState === "error" && submitError ? (
+              <p role="alert" style={{ color: "var(--color-critical, red)", marginTop: "var(--space-2, 0.5rem)" }}>
+                {submitError}
+              </p>
+            ) : null}
+
+            <div style={{ display: "flex", gap: "var(--space-2, 0.5rem)", marginTop: "var(--space-4, 1rem)" }}>
+              <Button variant="primary" type="submit" disabled={submitState === "submitting"}>
+                {submitState === "submitting" ? "Saving…" : "Save elevator"}
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setFormOpen(false);
+                  setForm(EMPTY_FORM);
+                  setFormErrors({});
+                  setSubmitState("idle");
+                  setSubmitError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       {body}
     </PageContainer>

@@ -167,12 +167,12 @@ export function ConfigPage(): JSX.Element {
 
   return (
     <PageContainer>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--spacing-3)" }}>
+      <header className="page__header">
         <div>
-          <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Route</span>
-          <h2 style={{ margin: 0 }}>Local Config</h2>
+          <span className="page__eyebrow">Route</span>
+          <h2>Local Config</h2>
         </div>
-        <span style={{ padding: "var(--spacing-1) var(--spacing-3)", borderRadius: "var(--radius-full, 9999px)", fontSize: "var(--font-size-sm)", background: "var(--color-surface-alt, #e2e8f0)", color: "var(--color-text)" }}>
+        <span style={{ padding: "var(--space-1) var(--space-3)", borderRadius: "var(--radius-full, 9999px)", fontSize: "var(--font-size-sm)", background: "var(--color-surface-alt, #e2e8f0)", color: "var(--color-text)" }}>
           {currentConfig.isUsingDefaults ? "Using defaults" : "Using local overrides"}
         </span>
       </header>
@@ -213,7 +213,7 @@ export function ConfigPage(): JSX.Element {
           role="alert"
           aria-live="polite"
           style={{
-            padding: "var(--spacing-3) var(--spacing-4)",
+            padding: "var(--space-3) var(--space-4)",
             borderRadius: "var(--radius-md, 6px)",
             background: feedback.tone === "error"
               ? "var(--color-status-critical-bg, #fee2e2)"
@@ -221,29 +221,29 @@ export function ConfigPage(): JSX.Element {
             color: feedback.tone === "error"
               ? "var(--color-status-critical, #dc2626)"
               : "var(--color-status-healthy, #16a34a)",
-            marginBlock: "var(--spacing-3)"
+            marginBlock: "var(--space-3)"
           }}
         >
           {feedback.text}
         </div>
       ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", gap: "var(--spacing-4)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", gap: "var(--space-4)" }}>
         <Card
           header={
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--spacing-2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-2)" }}>
               <div>
-                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Settings</span>
+                <span className="page__eyebrow">Settings</span>
                 <h3 style={{ margin: 0 }}>Connection profile</h3>
               </div>
-              <span style={{ padding: "var(--spacing-1) var(--spacing-3)", borderRadius: "var(--radius-full, 9999px)", fontSize: "var(--font-size-sm)", background: "var(--color-surface-alt, #e2e8f0)", color: "var(--color-text)" }}>
+              <span style={{ padding: "var(--space-1) var(--space-3)", borderRadius: "var(--radius-full, 9999px)", fontSize: "var(--font-size-sm)", background: "var(--color-surface-alt, #e2e8f0)", color: "var(--color-text)" }}>
                 {hasUnsavedChanges ? "Unsaved changes" : "Saved"}
               </span>
             </div>
           }
         >
           <form onSubmit={handleSave}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-4)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
               <TextInput
                 label="API base URL"
                 value={draft.apiBaseUrl}
@@ -278,7 +278,7 @@ export function ConfigPage(): JSX.Element {
                 <span>Preview socket base: {wsPreview}</span>
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-3)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)" }}>
                 <Button variant="primary" type="submit">
                   Save local config
                 </Button>
@@ -310,15 +310,15 @@ export function ConfigPage(): JSX.Element {
         <Card
           header={
             <div>
-              <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Behavior</span>
+              <span className="page__eyebrow">Behavior</span>
               <h3 style={{ margin: 0 }}>How it applies</h3>
             </div>
           }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-4)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
             <Card elevation="flat" headingLevel={4}>
               <div>
-                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Runtime</span>
+                <span className="page__eyebrow">Runtime</span>
                 <h4 style={{ margin: 0 }}>Requests update immediately</h4>
               </div>
               <p>
@@ -329,7 +329,7 @@ export function ConfigPage(): JSX.Element {
 
             <Card elevation="flat" headingLevel={4}>
               <div>
-                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Storage</span>
+                <span className="page__eyebrow">Storage</span>
                 <h4 style={{ margin: 0 }}>Per-browser persistence</h4>
               </div>
               <p>
@@ -340,7 +340,7 @@ export function ConfigPage(): JSX.Element {
 
             <Card elevation="flat" headingLevel={4}>
               <div>
-                <span style={{ fontSize: "var(--font-size-xs)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.7 }}>Fallback</span>
+                <span className="page__eyebrow">Fallback</span>
                 <h4 style={{ margin: 0 }}>Defaults remain available</h4>
               </div>
               <p>
